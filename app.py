@@ -10,14 +10,22 @@ def home():
 
 @app.get("/prices")
 def prices():
-    try:
-        r = requests.get("https://api.coinbase.com/v2/exchange-rates?currency=USD", timeout=5)
-        data = r.json()["data"]["rates"]
-        top = ["BTC", "ETH", "SOL", "ADA", "DOGE", "BNB", "XRP", "AVAX", "LTC", "DOT"]
-        prices = {}
-        for coin in top:
-            if coin in data:
-                prices[f"{coin}-USD"] = round(1 / float(data[coin]), 4)
-        return prices
-    except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+    # only coins Coinbase's public /v2/prices endpoint actually has
+    coins = ["BTC", "ETH", "SOL", "ADA", "DOGE", "AVAX", "LTC", "DOT", "BCH", "LINK"]
+    out = {}
+
+    for coin in coins:
+        pair = f"{coin}-USD"
+        try:
+            r = requests.get(f"https://api.coinbase.com/v2/prices/{pair}/spot", timeout=5)
+            data = r.json()
+            if "data" in data and "amount" in data["data"]:
+                out[pair] = data["data"]["amount"]
+        except Exception:
+            # skip bad ones
+            continue
+
+    if not out:
+        return JSONResponse({"error": "could not fetch prices"}, status_code=500)
+
+    return out
