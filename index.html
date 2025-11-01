@@ -149,13 +149,12 @@
   </div>
 
   <script>
-    // Theme toggle
+    // theme
     const root=document.documentElement;
-    function setTheme(mode){root.dataset.theme=mode;localStorage.setItem("theme",mode);document.getElementById("settingsMenu").style.display="none";}
+    function setTheme(m){root.dataset.theme=m;localStorage.setItem("theme",m);document.getElementById("settingsMenu").style.display="none";}
     function toggleSettings(){const m=document.getElementById("settingsMenu");m.style.display=m.style.display==="block"?"none":"block";}
     root.dataset.theme=localStorage.getItem("theme")||"dark";
 
-    // HiDPI fix
     function getHiDpiContext(canvas){
       const dpr=window.devicePixelRatio||1;
       const rect=canvas.getBoundingClientRect();
@@ -171,17 +170,22 @@
       const status=document.getElementById("status");
       status.textContent="loading…";
       try{
-        const [pricesRes,signalsRes]=await Promise.all([
+        const [pRes,sRes]=await Promise.all([
           fetch("/prices"),fetch("/signals")
         ]);
-        const prices=await pricesRes.json();
-        const signals=await signalsRes.json();
+        const prices=await pRes.json();
+        const signals=await sRes.json();
         lastPrices=prices;
         renderList(prices,signals);
-        if(!selectedPair)selectedPair=Object.keys(prices)[0];
+        if(!selectedPair) selectedPair=Object.keys(prices)[0];
         await loadCandles(selectedPair,selectedRange);
         status.textContent="updated "+new Date().toLocaleTimeString();
-      }catch{status.textContent="failed";}
+      }catch(e){
+        console.log(e);
+        status.textContent="failed";
+        // draw empty so it doesn't look broken
+        drawChart([]);
+      }
     }
 
     function renderList(prices,signals){
@@ -189,41 +193,54 @@
       list.innerHTML="";
       const sorted=Object.entries(signals)
         .sort((a,b)=>(b[1].confidence||0)-(a[1].confidence||0))
-        .slice(0,10); // top 10 best performing
+        .slice(0,10);
       sorted.forEach(([pair,sig])=>{
         const price=prices[pair];
-        const s=sig.signal;
         let cls="hold";
-        if(s==="BUY")cls="buy";
-        else if(s==="SELL")cls="sell";
-        else if(s==="AVOID")cls="avoid";
+        if(sig.signal==="BUY") cls="buy";
+        else if(sig.signal==="SELL") cls="sell";
+        else if(sig.signal==="AVOID") cls="avoid";
         const row=document.createElement("div");
         row.className="row"+(pair===selectedPair?" active":"");
         row.onclick=()=>{selectedPair=pair;renderList(prices,signals);loadCandles(pair,selectedRange);};
         row.innerHTML=`<span>${pair}</span>
           <span class="right">
             <span>$${Number(price).toLocaleString()}</span>
-            <span class="tag ${cls}">${s}${sig.confidence?" · "+Math.round(sig.confidence*100)+"%":""}</span>
+            <span class="tag ${cls}">${sig.signal}${sig.confidence?` · ${Math.round(sig.confidence*100)}%`:""}</span>
           </span>`;
         list.appendChild(row);
       });
     }
 
-    function setRange(r){selectedRange=r;
-      document.querySelectorAll(".range-buttons .btn-sm").forEach(b=>b.classList.toggle("active",b.textContent.replace(/\s/g,'').toLowerCase()===r.toLowerCase()));
-      if(selectedPair)loadCandles(selectedPair,selectedRange);}
-    function setChartType(t){chartType=t;
+    function setRange(r){
+      selectedRange=r;
+      document.querySelectorAll(".range-buttons .btn-sm").forEach(b=>{
+        b.classList.toggle("active",b.textContent.trim().toLowerCase()===r.toLowerCase())
+      });
+      if(selectedPair) loadCandles(selectedPair,selectedRange);
+    }
+
+    function setChartType(t){
+      chartType=t;
       document.getElementById("btn-line").classList.toggle("active",t==="line");
       document.getElementById("btn-candle").classList.toggle("active",t==="candle");
-      if(selectedPair)loadCandles(selectedPair,selectedRange,true);}
+      if(window._lastCandles) drawChart(window._lastCandles);
+    }
 
-    async function loadCandles(pair,range,skip=false){
+    async function loadCandles(pair,range){
       document.getElementById("chart-title").textContent=pair;
       document.getElementById("chart-price").textContent=lastPrices[pair]?"$"+Number(lastPrices[pair]).toLocaleString():"";
-      let data;
-      if(!skip){const r=await fetch(`/candles/${pair}?range=${range}`);data=await r.json();window._lastCandles=data.candles||[];}
-      else data={candles:window._lastCandles||[]};
-      drawChart(data.candles||[]);
+      try{
+        const r=await fetch(`/candles/${pair}?range=${range}`);
+        const data=await r.json();
+        const candles=data.candles||[];
+        window._lastCandles=candles;
+        drawChart(candles);
+      }catch(e){
+        console.log("candles failed",e);
+        window._lastCandles=[];
+        drawChart([]);
+      }
     }
 
     function drawChart(candles){
@@ -232,7 +249,13 @@
       const rect=canvas.getBoundingClientRect();
       const w=rect.width,h=rect.height;
       ctx.clearRect(0,0,w,h);
-      if(!candles.length){ctx.fillStyle="rgba(226,232,240,.4)";ctx.fillText("no data…",10,30);return;}
+
+      if(!candles.length){
+        ctx.fillStyle="rgba(226,232,240,.4)";
+        ctx.fillText("no data…",10,30);
+        return;
+      }
+
       if(chartType==="line"){
         const closes=candles.map(c=>c.close);
         const max=Math.max(...closes),min=Math.min(...closes),spread=(max-min)||1;
@@ -242,7 +265,7 @@
         closes.forEach((v,i)=>{
           const x=(i/Math.max(closes.length-1,1))*(w-10)+5;
           const y=h-((v-min)/spread)*(h-10)-5;
-          if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+          if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
         });
         ctx.stroke();
       }else{
@@ -259,14 +282,14 @@
           ctx.strokeStyle=up?"#22c55e":"#ef4444";
           ctx.beginPath();ctx.moveTo(x,hY);ctx.lineTo(x,lY);ctx.stroke();
           ctx.fillStyle=up?"rgba(34,197,94,.45)":"rgba(239,68,68,.5)";
-          const bodyY=up?cY:oY,bodyH=Math.max(2,Math.abs(cY-oY));
+          const bodyY=up?cY:oY; const bodyH=Math.max(2,Math.abs(cY-oY));
           ctx.fillRect(x-barW/2,bodyY,barW,bodyH);
         });
       }
     }
 
-    window.addEventListener("resize",()=>{if(window._lastCandles)drawChart(window._lastCandles);});
-    setInterval(refreshAll,10000);
+    // auto refresh (now shows stable signals because backend ignores <1.5%)
+    setInterval(refreshAll, 10000);
     refreshAll();
   </script>
 </body>
