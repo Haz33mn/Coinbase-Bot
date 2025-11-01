@@ -10,7 +10,6 @@ def home():
 
 @app.get("/prices")
 def prices():
-    # Add as many coins as you want — just use their Coinbase ticker symbols
     coins = ["BTC", "ETH", "SOL", "ADA", "DOGE", "BNB", "XRP", "AVAX", "LTC", "DOT"]
     prices = {}
     for coin in coins:
