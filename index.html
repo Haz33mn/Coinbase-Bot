@@ -44,7 +44,6 @@
       text-align: center;
       margin-bottom: 1rem;
     }
-    /* settings button */
     #settingsBtn {
       position: absolute;
       top: 1rem;
@@ -141,7 +140,7 @@
       border-color: rgba(56,189,248,0.4);
       color: var(--fg);
     }
-    canvas { background: rgba(15,23,42,0.15); border-radius: .75rem; }
+    canvas { background: rgba(15,23,42,0.15); border-radius: .75rem; width: 100%; height: 220px; display: block; }
     button.refresh {
       background: var(--accent);
       border: none;
@@ -186,7 +185,7 @@
           <button class="btn-sm" onclick="setRange('6m')">6M</button>
           <button class="btn-sm" onclick="setRange('1y')">1Y</button>
         </div>
-        <canvas id="chart" height="210"></canvas>
+        <canvas id="chart"></canvas>
         <small id="status">loading…</small>
       </div>
     </div>
@@ -221,15 +220,26 @@
       const menu = document.getElementById("settingsMenu");
       menu.style.display = menu.style.display === "block" ? "none" : "block";
     }
-    // load saved theme
     const savedTheme = localStorage.getItem("theme") || "dark";
     root.dataset.theme = savedTheme;
 
-    // ====== main app logic (unchanged from previous version) ======
+    // ====== High-DPI Canvas ======
+    function getHiDpiContext(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return ctx;
+    }
+
+    // ====== App logic ======
     let selectedPair = null;
     let selectedRange = "24h";
     let chartType = "line";
     let lastPrices = {};
+
     async function refreshAll() {
       const status = document.getElementById("status");
       status.textContent = "loading…";
@@ -305,10 +315,18 @@
 
     function drawChart(candles) {
       const canvas = document.getElementById("chart");
-      const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (!candles.length) { ctx.fillText("no data…", 10, 30); return; }
-      const w = canvas.width, h = canvas.height;
+      const ctx = getHiDpiContext(canvas);
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+
+      ctx.clearRect(0, 0, w, h);
+      if (!candles.length) {
+        ctx.fillStyle = "rgba(226,232,240,.4)";
+        ctx.fillText("no data…", 10, 30);
+        return;
+      }
+
       if (chartType === "line") {
         const closes = candles.map(c => c.close);
         const max = Math.max(...closes), min = Math.min(...closes);
@@ -328,7 +346,7 @@
         const lows = candles.map(c => c.low);
         const max = Math.max(...highs), min = Math.min(...lows);
         const spread = (max - min) || 1;
-        const barW = Math.max(4, (w - 10) / candles.length - 2);
+        const barW = Math.max(6, (w - 10) / candles.length - 2);
         candles.forEach((c, i) => {
           const x = (i / Math.max(candles.length - 1, 1)) * (w - 10) + 5;
           const openY = h - ((c.open - min) / spread) * (h - 10) - 5;
@@ -364,6 +382,10 @@
           </div>`).join("");
       } catch { box.innerHTML="error loading"; }
     }
+
+    window.addEventListener("resize", () => {
+      if (window._lastCandles) drawChart(window._lastCandles);
+    });
 
     setInterval(refreshAll, 10000);
     setInterval(refreshTop10, 10000);
