@@ -1,11 +1,14 @@
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 import requests
+import os
 
 app = FastAPI()
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+@app.get("/")
+def home():
+    # Serve the index.html file from the same folder
+    return FileResponse("index.html")
 
 @app.get("/prices")
 def prices():
