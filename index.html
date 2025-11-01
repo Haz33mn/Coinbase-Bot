@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Crypto Bot</title>
+  <title>My Coinbase Bot</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root {
@@ -13,6 +13,8 @@
       --accent: #38bdf8;
       --danger: #ef4444;
       --success: #22c55e;
+      --muted: rgba(226,232,240,.45);
+      --chartbg: rgba(15,23,42,0.12);
     }
     [data-theme="light"] {
       --bg: #f1f5f9;
@@ -20,7 +22,10 @@
       --card: #ffffff;
       --border: rgba(148,163,184,0.35);
       --accent: #0ea5e9;
+      --muted: rgba(15,23,42,.45);
+      --chartbg: rgba(15,23,42,.035);
     }
+    * { box-sizing: border-box; }
     body {
       background: var(--bg);
       color: var(--fg);
@@ -29,62 +34,98 @@
       justify-content: center;
       align-items: flex-start;
       min-height: 100vh;
-      padding: 2rem 1rem;
-      transition: background .25s, color .25s;
+      padding: 1.75rem 1rem 4rem;
+      transition: background .2s, color .2s;
     }
     .card {
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 1.25rem;
-      width: min(980px, 100%);
-      padding: 1.5rem;
-      box-shadow: 0 12px 35px rgba(0,0,0,0.25);
+      width: min(1080px, 100%);
+      padding: 1.4rem 1.4rem 1.1rem;
+      box-shadow: 0 14px 35px rgba(0,0,0,0.25);
       position: relative;
     }
     h1 {
       text-align: center;
-      margin-bottom: 1.25rem;
+      margin: .35rem 0 1rem;
+      font-size: 1.8rem;
+    }
+    .top-bar {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:1rem;
+      margin-bottom:.3rem;
+    }
+    .status-pill {
+      display:flex;
+      align-items:center;
+      gap:.4rem;
+      font-size:.7rem;
+      background: rgba(148,163,184,0.06);
+      border:1px solid rgba(148,163,184,0.12);
+      border-radius:999px;
+      padding:.25rem .85rem;
+    }
+    .dot {
+      width:.55rem; height:.55rem; border-radius:999px;
     }
     #settingsBtn {
-      position:absolute; top:1rem; right:1rem;
       background:var(--accent); color:var(--bg);
       border:none; border-radius:.75rem;
-      padding:.35rem .75rem; font-weight:600;
-      cursor:pointer; font-size:.8rem;
-      display:flex; gap:.25rem; align-items:center;
+      padding:.25rem .75rem; font-weight:600;
+      cursor:pointer; font-size:.75rem;
+      display:flex; gap:.35rem; align-items:center;
     }
     #settingsMenu {
-      position:absolute; top:3rem; right:1rem;
+      position:absolute; top:3.5rem; right:1.4rem;
       background:var(--card); border:1px solid var(--border);
-      border-radius:.75rem; padding:.6rem;
-      width:160px; display:none;
-      box-shadow:0 10px 25px rgba(0,0,0,0.25);
+      border-radius:.75rem; padding:.55rem .55rem .45rem;
+      width:170px; display:none;
+      box-shadow:0 14px 30px rgba(0,0,0,0.25);
+      z-index:15;
     }
     #settingsMenu button {
       width:100%; margin-bottom:.35rem;
-      background:none; border:1px solid var(--border);
-      border-radius:.5rem; padding:.35rem .5rem;
-      color:var(--fg); cursor:pointer; font-size:.75rem;
+      background:none; border:1px solid transparent;
+      border-radius:.5rem; padding:.3rem .4rem;
+      color:var(--fg); cursor:pointer; font-size:.7rem;
+      text-align:left;
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    #settingsMenu button.active {
+      background:rgba(56,189,248,0.15);
+      border-color:rgba(56,189,248,0.25);
     }
     #settingsMenu button:last-child { margin-bottom:0; }
-    #settingsMenu button:hover {
-      background:var(--accent); color:var(--bg);
-    }
     .layout {
-      display:flex; gap:1.2rem;
+      display:flex; gap:1.2rem; margin-top:1rem;
     }
     .list {
-      width:34%; display:flex; flex-direction:column;
-      gap:.35rem; max-height:360px; overflow-y:auto;
+      width:33%; display:flex; flex-direction:column;
+      gap:.5rem; max-height:360px; overflow-y:auto;
+    }
+    .search-box {
+      background:rgba(15,23,42,0.08);
+      border:1px solid rgba(148,163,184,0.10);
+      border-radius:.6rem;
+      padding:.25rem .5rem;
+      display:flex; gap:.5rem; align-items:center;
+      margin-bottom:.35rem;
+    }
+    .search-box input {
+      background:transparent; border:none; outline:none;
+      color:var(--fg); font-size:.7rem; width:100%;
     }
     .row {
       display:flex; justify-content:space-between; align-items:center;
-      padding:.45rem .5rem .45rem .75rem;
-      border-radius:.6rem; cursor:pointer;
-      transition:background .12s;
+      padding:.45rem .5rem .45rem .7rem;
+      border-radius:.65rem; cursor:pointer;
+      transition:background .1s;
     }
     .row:hover { background: rgba(148,163,184,0.06); }
-    .row.active { background: rgba(56,189,248,0.14); outline:1px solid rgba(56,189,248,0.35); }
+    .row.active { background: rgba(56,189,248,0.12); outline:1px solid rgba(56,189,248,0.25); }
     .right { display:flex; gap:.45rem; align-items:center; }
     .tag {
       padding: 2px 9px;
@@ -96,24 +137,33 @@
     .buy { background: rgba(34,197,94,.15); color: #22c55e; }
     .sell { background: rgba(248,113,113,.15); color: #f87171; }
     .hold { background: rgba(59,130,246,.15); color: #3b82f6; }
+    .perf {
+      font-size:.6rem; opacity:.55;
+      display:inline-block; min-width:47px;
+      text-align:right;
+    }
     .chart-wrap {
       flex:1;
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 1rem;
-      padding: .75rem .75rem 1rem;
+      padding: .75rem .75rem .7rem;
       display:flex;
       flex-direction:column;
       gap:.45rem;
+      min-height: 285px;
+      position:relative;
     }
     .chart-top {
       display:flex;
       justify-content:space-between;
       align-items:center;
+      gap:1rem;
     }
     .range-buttons, .type-buttons {
       display:flex;
       gap:.4rem;
+      flex-wrap:wrap;
     }
     .btn-sm {
       background: rgba(148,163,184,0.04);
@@ -129,11 +179,24 @@
       border-color: rgba(56,189,248,0.35);
     }
     canvas {
-      background: rgba(15,23,42,0.12);
+      background: var(--chartbg);
       border-radius: .75rem;
       width: 100%;
-      height: 220px;
+      height: 205px;
       display:block;
+    }
+    .chart-footer {
+      display:flex; justify-content:space-between; align-items:center;
+      font-size:.65rem; opacity:.75;
+    }
+    .err-bar {
+      position:absolute; bottom:2.1rem; right:1rem;
+      background:rgba(248,113,113,.15);
+      border:1px solid rgba(248,113,113,.25);
+      border-radius:.4rem;
+      padding:.3rem .6rem;
+      font-size:.6rem;
+      display:none;
     }
     .refresh {
       background: var(--accent);
@@ -144,30 +207,81 @@
       font-weight: 600;
       cursor:pointer;
       width:100%;
-      margin-top: .6rem;
+      margin-top: .9rem;
     }
-    small {
-      opacity: .6;
-      font-size: .7rem;
+    .side-panel {
+      margin-top:1.2rem;
+      display:flex;
+      gap:1rem;
+      flex-wrap:wrap;
     }
-    @media(max-width: 820px) {
+    .panel {
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:.8rem;
+      padding:.5rem .6rem;
+      flex:1 1 230px;
+      min-height:110px;
+    }
+    .panel h3 {
+      font-size:.75rem; margin-bottom:.35rem;
+    }
+    .trade-btns {
+      display:flex; gap:.5rem; margin-top:.35rem;
+    }
+    .trade-btns button {
+      flex:1; border:none; border-radius:.5rem;
+      padding:.35rem .3rem; font-size:.7rem; cursor:pointer;
+    }
+    .buy-btn { background:rgba(34,197,94,.18); color:#22c55e; }
+    .sell-btn { background:rgba(248,113,113,.18); color:#f87171; }
+    .panel small { opacity:.55; font-size:.6rem; }
+    .audit-list { max-height:100px; overflow-y:auto; }
+    .audit-item { font-size:.6rem; margin-bottom:.25rem; opacity:.75; }
+    .reason-chip {
+      background:rgba(148,163,184,.08);
+      border:1px solid rgba(148,163,184,.12);
+      border-radius:.5rem;
+      padding:.15rem .4rem;
+      font-size:.6rem;
+    }
+    .sim-flag {
+      font-size:.6rem; opacity:.55; margin-left:.35rem;
+    }
+    @media(max-width: 920px) {
       .layout { flex-direction:column; }
-      .list { width:100%; max-height:230px; }
+      .list { width:100%; max-height:200px; }
+      .chart-wrap { min-height:260px; }
+      .top-bar { flex-direction:column; align-items:flex-start; }
+      #settingsMenu { right:.4rem; }
     }
   </style>
 </head>
 <body>
   <div class="card">
-    <button id="settingsBtn" onclick="toggleSettings()">⚙️ Settings</button>
-    <div id="settingsMenu">
-      <button onclick="setTheme('dark')">Dark mode</button>
-      <button onclick="setTheme('light')">Light mode</button>
+    <div class="top-bar">
+      <div class="status-pill">
+        <span id="live-dot" class="dot" style="background:#22c55e"></span>
+        <span id="live-text">live · 10s</span>
+      </div>
+      <button id="settingsBtn" onclick="toggleSettings()">⚙️ Settings</button>
+      <div id="settingsMenu">
+        <button id="darkBtn" onclick="setTheme('dark')">Dark mode <span>●</span></button>
+        <button id="lightBtn" onclick="setTheme('light')">Light mode <span></span></button>
+        <button id="paperBtn" onclick="togglePaper()">Paper trades <span id="paperBadge"></span></button>
+      </div>
     </div>
 
     <h1>My Coinbase Bot</h1>
 
     <div class="layout">
-      <div id="list" class="list">loading…</div>
+      <div class="list">
+        <div class="search-box">
+          🔎
+          <input id="search" placeholder="Search pair..." oninput="filterList()" />
+        </div>
+        <div id="list">loading…</div>
+      </div>
       <div class="chart-wrap">
         <div class="chart-top">
           <div>
@@ -186,35 +300,231 @@
           <button class="btn-sm" onclick="setRange('1y')">1Y</button>
         </div>
         <canvas id="chart"></canvas>
-        <small id="status">loading…</small>
+        <div class="chart-footer">
+          <span id="status">loading…</span>
+          <span class="sim-flag" id="sim-flag">using simulated candles (backend didn’t send /candles)</span>
+        </div>
+        <div class="err-bar" id="err-bar">candles failed, using simulated data</div>
       </div>
     </div>
 
-    <button class="refresh" onclick="refreshAll()">Refresh</button>
+    <button class="refresh" onclick="manualRefresh()">Refresh</button>
+
+    <div class="side-panel">
+      <div class="panel">
+        <h3>Quick actions</h3>
+        <div class="trade-btns">
+          <button class="buy-btn" onclick="paperTrade('BUY')">Paper BUY</button>
+          <button class="sell-btn" onclick="paperTrade('SELL')">Paper SELL</button>
+        </div>
+        <small>real trading not wired yet</small>
+      </div>
+      <div class="panel">
+        <h3>My balances</h3>
+        <div id="balances">trying to load…</div>
+      </div>
+      <div class="panel">
+        <h3>AI audit log</h3>
+        <div id="audit" class="audit-list"></div>
+      </div>
+    </div>
   </div>
 
   <script>
-    // THEME
+    // -------- THEME ----------
     const root = document.documentElement;
     function setTheme(m){
       root.dataset.theme = m;
       localStorage.setItem("theme", m);
+      document.getElementById("darkBtn").classList.toggle("active", m==="dark");
+      document.getElementById("lightBtn").classList.toggle("active", m==="light");
       document.getElementById("settingsMenu").style.display="none";
     }
     function toggleSettings(){
       const el = document.getElementById("settingsMenu");
       el.style.display = el.style.display==="block" ? "none" : "block";
     }
-    root.dataset.theme = localStorage.getItem("theme") || "dark";
+    const savedTheme = localStorage.getItem("theme") || "dark";
+    setTheme(savedTheme);
 
-    // STATE
+    // -------- STATE ----------
     let selectedPair = null;
     let selectedRange = "24h";
     let chartType = "line";
     let lastPrices = {};
     let lastSignals = {};
     let lastCandles = [];
+    let filteredPairs = [];
+    let stableScores = {}; // for “don’t jump every time”
+    let cooldown = {}; // {pair:{signal, time, price}}
+    const COOLDOWN_MS = 30000;
+    const MIN_MOVE_PCT = 1.5;
+    let paperEnabled = localStorage.getItem("paperEnabled") === "1";
+    updatePaperBadge();
 
+    function updatePaperBadge(){
+      const el = document.getElementById("paperBadge");
+      el.textContent = paperEnabled ? "ON" : "OFF";
+      document.getElementById("paperBtn").classList.toggle("active", paperEnabled);
+    }
+    function togglePaper(){
+      paperEnabled = !paperEnabled;
+      localStorage.setItem("paperEnabled", paperEnabled ? "1":"0");
+      updatePaperBadge();
+      document.getElementById("settingsMenu").style.display="none";
+    }
+
+    // -------- FETCH + REFRESH ----------
+    async function fetchJSON(url){
+      const res = await fetch(url);
+      if(!res.ok) throw new Error("http " + res.status);
+      return await res.json();
+    }
+
+    async function loadBalances(){
+      const el = document.getElementById("balances");
+      try{
+        const data = await fetchJSON("/portfolio?nc="+Date.now());
+        if(!Array.isArray(data) || !data.length){
+          el.textContent = "no balances or endpoint empty";
+          return;
+        }
+        el.innerHTML = "";
+        data.slice(0,4).forEach(b => {
+          const d = document.createElement("div");
+          d.textContent = `${b.asset}: ${b.amount}`;
+          d.style.fontSize = ".65rem";
+          el.appendChild(d);
+        });
+      }catch(e){
+        el.textContent = "backend has no /portfolio (fine)";
+      }
+    }
+
+    async function refreshAll(auto = false){
+      const status = document.getElementById("status");
+      const liveDot = document.getElementById("live-dot");
+      const liveText = document.getElementById("live-text");
+      try{
+        const [prices, signals] = await Promise.all([
+          fetchJSON("/prices?nc="+Date.now()),
+          fetchJSON("/signals?nc="+Date.now())
+        ]);
+        lastPrices = prices;
+        lastSignals = signals;
+
+        // build + render list
+        renderList(prices, signals);
+        if(!selectedPair){
+          selectedPair = Object.keys(prices)[0] || null;
+        }
+        if(selectedPair){
+          await loadCandles(selectedPair, selectedRange);
+        }
+        status.textContent = "updated " + new Date().toLocaleTimeString();
+        liveDot.style.background = "#22c55e";
+        liveText.textContent = "live · 10s";
+        if(!auto) addAudit("REFRESH", "manual refresh");
+      }catch(e){
+        status.textContent = "failed to refresh";
+        liveDot.style.background = "#f87171";
+        liveText.textContent = "offline (kept last data)";
+      }
+    }
+
+    function manualRefresh(){
+      refreshAll(false);
+      loadBalances();
+    }
+
+    // -------- LIST ----------
+    function filterList(){
+      const q = document.getElementById("search").value.trim().toLowerCase();
+      renderList(lastPrices, lastSignals, q);
+    }
+
+    function smoothedSignal(pair, raw){
+      if(!raw) return {signal:"HOLD", confidence:0.5, reason:"no signal"};
+      // 1. low confidence -> HOLD
+      if(!raw.confidence || raw.confidence < 0.75) {
+        return {signal:"HOLD", confidence:0.5, reason:"confidence < 0.75"};
+      }
+      // 2. cooldown
+      const prev = cooldown[pair];
+      const now = Date.now();
+      const priceNow = Number(lastPrices[pair] || 0);
+      if(prev && prev.signal !== raw.signal){
+        const dt = now - prev.time;
+        const pct = priceNow && prev.price ? Math.abs(priceNow - prev.price)/prev.price*100 : 0;
+        if(dt < COOLDOWN_MS && pct < MIN_MOVE_PCT){
+          // stay in old signal
+          return {signal:prev.signal, confidence:prev.confidence || .5,
+                  reason:`cooldown active (${Math.round(dt/1000)}s) & move ${pct.toFixed(2)}% < ${MIN_MOVE_PCT}%`};
+        }
+      }
+      // store
+      cooldown[pair] = {signal:raw.signal, time:now, price:Number(lastPrices[pair]||0), confidence:raw.confidence};
+      return {signal:raw.signal, confidence:raw.confidence, reason:raw.reason || "backend signal"};
+    }
+
+    function renderList(prices, signals, query = ""){
+      const list = document.getElementById("list");
+      list.innerHTML = "";
+
+      const entries = Object.keys(prices).map(pair => {
+        const raw = signals[pair];
+        const sm = smoothedSignal(pair, raw);
+        // score: confidence but stabilized with previous
+        const oldScore = stableScores[pair] ?? 0;
+        const newScore = (sm.confidence || 0);
+        const score = oldScore * 0.7 + newScore * 0.3;
+        stableScores[pair] = score;
+        return {pair, price: prices[pair], sig: sm, score};
+      });
+
+      // sort by stable score
+      entries.sort((a,b) => b.score - a.score);
+
+      // filter
+      const filtered = query
+        ? entries.filter(e => e.pair.toLowerCase().includes(query))
+        : entries;
+
+      const top = filtered.slice(0, 10);
+
+      top.forEach(item => {
+        const row = document.createElement("div");
+        row.className = "row" + (item.pair === selectedPair ? " active" : "");
+        row.onclick = () => {
+          selectedPair = item.pair;
+          renderList(prices, signals, document.getElementById("search").value.trim().toLowerCase());
+          loadCandles(item.pair, selectedRange);
+          addAudit("SELECT", item.pair);
+        };
+        let cls = "hold";
+        if(item.sig.signal === "BUY") cls = "buy";
+        else if(item.sig.signal === "SELL") cls = "sell";
+
+        // fake perf from candles later; for now 0
+        const perf = getPerfFor(item.pair);
+
+        row.innerHTML = `
+          <span>${item.pair}</span>
+          <span class="right">
+            <span class="perf">${perf}</span>
+            <span>$${Number(item.price).toLocaleString()}</span>
+            <span class="tag ${cls}" title="${item.sig.reason || ""}">${item.sig.signal} · ${Math.round((item.sig.confidence||0)*100)}%</span>
+          </span>
+        `;
+        list.appendChild(row);
+      });
+
+      if(!top.length){
+        list.textContent = "no coins found";
+      }
+    }
+
+    // -------- CANDLES / CHART ----------
     function getHiDpiContext(canvas){
       const dpr = window.devicePixelRatio || 1;
       const rect = canvas.getBoundingClientRect();
@@ -225,129 +535,37 @@
       return ctx;
     }
 
-    // FRONTEND SMOOTHING of signals
-    function smoothSignal(raw){
-      // raw: {signal, confidence}
-      if(!raw) return {signal:"HOLD", confidence:0.5};
-
-      // if not confident, just show HOLD
-      if(raw.confidence === undefined || raw.confidence < 0.75){
-        return {signal:"HOLD", confidence:0.5};
-      }
-      // BTC we keep calmer from UI side too
-      return raw;
-    }
-
-    async function refreshAll(){
-      const status = document.getElementById("status");
-      status.textContent = "loading…";
-      try{
-        // add no-cache to force new data
-        const [pRes, sRes] = await Promise.all([
-          fetch("/prices?nc="+Date.now()),
-          fetch("/signals?nc="+Date.now())
-        ]);
-        const prices = await pRes.json();
-        const signals = await sRes.json();
-        lastPrices = prices;
-        lastSignals = signals;
-
-        // render list from top 10 best “performing” = highest confidence AFTER smoothing
-        renderList(prices, signals);
-
-        if(!selectedPair){
-          selectedPair = Object.keys(prices)[0];
-        }
-        await loadCandles(selectedPair, selectedRange);
-        status.textContent = "updated " + new Date().toLocaleTimeString();
-      }catch(e){
-        console.log("refresh failed", e);
-        status.textContent = "failed";
-      }
-    }
-
-    function renderList(prices, signals){
-      const list = document.getElementById("list");
-      list.innerHTML = "";
-
-      // smooth them first
-      const entries = Object.keys(prices).map(pair => {
-        const raw = signals[pair];
-        const sm = smoothSignal(raw);
-        return [pair, prices[pair], sm];
-      });
-
-      // sort by confidence, but after smoothing
-      entries.sort((a,b) => (b[2].confidence || 0) - (a[2].confidence || 0));
-      const top = entries.slice(0,10);
-
-      top.forEach(([pair, price, sig]) => {
-        const row = document.createElement("div");
-        row.className = "row" + (pair === selectedPair ? " active" : "");
-        row.onclick = () => {
-          selectedPair = pair;
-          renderList(prices, signals);
-          loadCandles(pair, selectedRange);
-        };
-        // style
-        let cls = "hold";
-        if(sig.signal === "BUY") cls = "buy";
-        else if(sig.signal === "SELL") cls = "sell";
-
-        row.innerHTML = `
-          <span>${pair}</span>
-          <span class="right">
-            <span>$${Number(price).toLocaleString()}</span>
-            <span class="tag ${cls}">${sig.signal} · ${Math.round((sig.confidence||0)*100)}%</span>
-          </span>
-        `;
-        list.appendChild(row);
-      });
-    }
-
-    function setRange(r){
-      selectedRange = r;
-      document.querySelectorAll(".range-buttons .btn-sm").forEach(btn => {
-        btn.classList.toggle("active", btn.textContent.trim().toLowerCase() === r.toLowerCase());
-      });
-      if(selectedPair) loadCandles(selectedPair, r);
-    }
-
-    function setChartType(t){
-      chartType = t;
-      document.getElementById("btn-line").classList.toggle("active", t==="line");
-      document.getElementById("btn-candle").classList.toggle("active", t==="candle");
-      drawChart(lastCandles);
-    }
-
     async function loadCandles(pair, range){
       document.getElementById("chart-title").textContent = pair;
       document.getElementById("chart-price").textContent = lastPrices[pair] ? "$" + Number(lastPrices[pair]).toLocaleString() : "";
+      const errBar = document.getElementById("err-bar");
+      errBar.style.display = "none";
       try{
-        const res = await fetch(`/candles/${pair}?range=${range}&nc=${Date.now()}`);
-        // if backend doesn’t have this route, this will throw → catch → fake data
-        const data = await res.json();
+        const data = await fetchJSON(`/candles/${pair}?range=${range}&nc=${Date.now()}`);
         const candles = Array.isArray(data.candles) ? data.candles : [];
         if(!candles.length){
-          const fake = makeFakeCandles(lastPrices[pair] || 100, 60);
+          const fake = makeFakeCandles(lastPrices[pair] || 100, 70);
           lastCandles = fake;
           drawChart(fake);
-        }else{
+          document.getElementById("sim-flag").style.display = "inline";
+        } else {
           lastCandles = candles;
           drawChart(candles);
+          document.getElementById("sim-flag").style.display = "none";
         }
       }catch(e){
-        // backend too old → just fake it
-        const fake = makeFakeCandles(lastPrices[pair] || 100, 60);
+        const fake = makeFakeCandles(lastPrices[pair] || 100, 70);
         lastCandles = fake;
         drawChart(fake);
+        errBar.style.display = "block";
+        document.getElementById("sim-flag").style.display = "inline";
       }
     }
 
     function makeFakeCandles(base, n){
       const out = [];
       let price = base;
-      const step = base * 0.003; // 0.3%
+      const step = base * 0.0025;
       for(let i=0;i<n;i++){
         const diff = (Math.random()*2 - 1) * step;
         const open = price;
@@ -378,6 +596,9 @@
         ctx.fillText("no data…", 10, 24);
         return;
       }
+
+      // update perf from candles
+      updatePerfFromCandles(candles);
 
       if(chartType === "line"){
         const closes = candles.map(c => c.close);
@@ -417,9 +638,86 @@
       }
     }
 
-    // auto refresh
-    setInterval(refreshAll, 10000);
-    refreshAll();
+    function setRange(r){
+      selectedRange = r;
+      document.querySelectorAll(".range-buttons .btn-sm").forEach(btn => {
+        btn.classList.toggle("active", btn.textContent.trim().toLowerCase() === r.toLowerCase());
+      });
+      if(selectedPair) loadCandles(selectedPair, r);
+    }
+
+    function setChartType(t){
+      chartType = t;
+      document.getElementById("btn-line").classList.toggle("active", t==="line");
+      document.getElementById("btn-candle").classList.toggle("active", t==="candle");
+      drawChart(lastCandles);
+    }
+
+    // -------- PERF from candles ----------
+    function updatePerfFromCandles(candles){
+      if(!selectedPair) return;
+      if(candles.length < 2) return;
+      const first = candles[0].close;
+      const last = candles[candles.length-1].close;
+      if(!first) return;
+      const pct = ((last - first)/first) * 100;
+      // store somewhere global
+      window.__perf = window.__perf || {};
+      window.__perf[selectedPair] = pct;
+      // re-render list to show updated perf but keep order (we don't re-sort here)
+      renderList(lastPrices, lastSignals, document.getElementById("search").value.trim().toLowerCase());
+    }
+
+    function getPerfFor(pair){
+      if(!window.__perf || window.__perf[pair] == null) return "";
+      const p = window.__perf[pair];
+      const s = (p>=0?"+":"") + p.toFixed(1) + "%";
+      return s;
+    }
+
+    // -------- PAPER TRADES + AUDIT ----------
+    function paperTrade(side){
+      if(!paperEnabled){
+        addAudit("PAPER blocked", "turn it on in settings");
+        return;
+      }
+      if(!selectedPair){
+        addAudit("PAPER blocked", "no pair selected");
+        return;
+      }
+      const trades = JSON.parse(localStorage.getItem("paper_trades") || "[]");
+      const price = Number(lastPrices[selectedPair] || 0);
+      trades.unshift({
+        ts: Date.now(),
+        side,
+        pair: selectedPair,
+        price
+      });
+      localStorage.setItem("paper_trades", JSON.stringify(trades.slice(0,25)));
+      addAudit(side, `${selectedPair} @ $${price.toLocaleString()}`);
+    }
+
+    function addAudit(action, detail){
+      const audit = document.getElementById("audit");
+      const item = document.createElement("div");
+      item.className = "audit-item";
+      item.textContent = `${new Date().toLocaleTimeString()} — ${action}: ${detail}`;
+      audit.prepend(item);
+      // trim
+      while(audit.children.length > 12){
+        audit.removeChild(audit.lastChild);
+      }
+    }
+
+    // -------- AUTO LOOP ----------
+    setInterval(() => {
+      refreshAll(true);
+      loadBalances();
+    }, 10000);
+
+    // initial
+    refreshAll(true);
+    loadBalances();
   </script>
 </body>
 </html>
