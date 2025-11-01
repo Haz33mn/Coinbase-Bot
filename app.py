@@ -1,13 +1,14 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pathlib import Path
 from datetime import datetime, timedelta
-import math
+import json
+import urllib.request
+import urllib.error
 
 app = FastAPI()
 
-# allow browser to hit our API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,6 +18,49 @@ app.add_middleware(
 )
 
 BASE_DIR = Path(__file__).resolve().parent
+
+# the coins we want to show
+COINS = [
+    "BTC-USD",
+    "ETH-USD",
+    "BCH-USD",
+    "SOL-USD",
+    "LTC-USD",
+    "AVAX-USD",
+    "LINK-USD",
+    "DOT-USD",
+    "ADA-USD",
+    "DOGE-USD",
+]
+
+# fallback prices if Coinbase won’t answer
+FALLBACK_PRICES = {
+    "BTC-USD": 109_785.923,
+    "ETH-USD": 3_828.794,
+    "BCH-USD": 553.041,
+    "SOL-USD": 190.341,
+    "LTC-USD": 98.375,
+    "AVAX-USD": 18.504,
+    "LINK-USD": 17.208,
+    "DOT-USD": 2.961,
+    "ADA-USD": 0.617,
+    "DOGE-USD": 0.188,
+}
+
+
+def get_json(url: str):
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Accept": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            return json.loads(resp.read().decode("utf-8")), True
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError):
+        return None, False
 
 
 @app.get("/")
@@ -32,110 +76,135 @@ def health():
     return {"status": "ok", "time": datetime.utcnow().isoformat() + "Z"}
 
 
-# this is what the UI uses to show the left list
 @app.get("/prices")
 def prices():
-    # these are mock but stable – you can replace with real Coinbase later
-    data = {
-        "BTC-USD": 109785.923,
-        "ETH-USD": 3828.794,
-        "SOL-USD": 190.341,
-        "ADA-USD": 0.617,
-        "DOT-USD": 2.961,
-        "AVAX-USD": 18.504,
-        "LINK-USD": 17.208,
-        "DOGE-USD": 0.188,
-        "LTC-USD": 98.375,
-        "BCH-USD": 553.041,
-    }
-    return data
+    """
+    Get current spot prices from Coinbase.
+    Public endpoint: https://api.coinbase.com/v2/prices/BTC-USD/spot
+    """
+    result = {}
+    from_live = True
+
+    for sym in COINS:
+        url = f"https://api.coinbase.com/v2/prices/{sym}/spot"
+        data, ok = get_json(url)
+        if ok and data and "data" in data:
+            try:
+                price = float(data["data"]["amount"])
+            except (ValueError, KeyError):
+                price = FALLBACK_PRICES.get(sym, 100.0)
+                from_live = False
+        else:
+            price = FALLBACK_PRICES.get(sym, 100.0)
+            from_live = False
+        result[sym] = price
+
+    return JSONResponse({"prices": result, "live": from_live})
 
 
-# this is the one your chart kept failing on
 @app.get("/history")
 def history(
-    symbol: str = "BTC-USD",
-    span: str = "24h",   # 24h | 1M | 6M | 1Y
-    mode: str = "line",  # line | candles
+    symbol: str = Query("BTC-USD"),
+    span: str = Query("24h"),  # 24h, 1M, 6M, 1Y
+    mode: str = Query("line"),  # line, candles
 ):
     """
-    We return always-valid data so the chart can never be empty.
-    No external calls. All generated right here.
+    Real Coinbase candles:
+      GET https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=3600
+    returns: [ time, low, high, open, close, volume ]
+    We'll map span -> granularity
     """
-    now = datetime.utcnow()
-
-    # how many points to return
+    # map spans to granularity
     if span == "24h":
-        points = 60
-        step = timedelta(minutes=25)
+        gran = 900        # 15m
     elif span == "1M":
-        points = 90
-        step = timedelta(hours=8)
+        gran = 21600      # 6h
     elif span == "6M":
-        points = 120
-        step = timedelta(days=2)
+        gran = 86400      # 1d
     else:  # 1Y
-        points = 140
-        step = timedelta(days=3)
+        gran = 604800     # 1w
 
-    # baseline price – grab from the same numbers as /prices
-    base_prices = {
-        "BTC-USD": 109_785.923,
-        "ETH-USD": 3_828.794,
-        "SOL-USD": 190.341,
-        "ADA-USD": 0.617,
-        "DOT-USD": 2.961,
-        "AVAX-USD": 18.504,
-        "LINK-USD": 17.208,
-        "DOGE-USD": 0.188,
-        "LTC-USD": 98.375,
-        "BCH-USD": 553.041,
-    }
-    base = base_prices.get(symbol, 100.0)
+    url = f"https://api.exchange.coinbase.com/products/{symbol}/candles?granularity={gran}"
+    data, ok = get_json(url)
 
-    # make it wobble a little so the chart looks real
-    line_points = []
-    candles = []
-    for i in range(points):
-        t = now - (points - i) * step
-        # smooth-ish wave
-        wave = math.sin(i / 7) * 0.012  # ~1.2%
-        price = base * (1 + wave)
-        line_points.append(
-            {
-                "t": t.isoformat() + "Z",
-                "p": round(price, 4),
-            }
-        )
-
+    # Coinbase returns newest first
+    if ok and isinstance(data, list) and len(data) > 0:
+        data.reverse()  # oldest first
         if mode == "candles":
-            high = price * 1.004
-            low = price * 0.996
-            o = price * 0.999
-            c = price * 1.001
+            candles = []
+            for c in data:
+                # c: [ time, low, high, open, close, volume ]
+                candles.append(
+                    {
+                        "t": datetime.utcfromtimestamp(c[0]).isoformat() + "Z",
+                        "o": c[3],
+                        "h": c[2],
+                        "l": c[1],
+                        "c": c[4],
+                    }
+                )
+            return {
+                "symbol": symbol,
+                "span": span,
+                "mode": mode,
+                "source": "live",
+                "candles": candles,
+            }
+        else:
+            points = []
+            for c in data:
+                points.append(
+                    {
+                        "t": datetime.utcfromtimestamp(c[0]).isoformat() + "Z",
+                        "p": c[4],  # close
+                    }
+                )
+            return {
+                "symbol": symbol,
+                "span": span,
+                "mode": mode,
+                "source": "live",
+                "points": points,
+            }
+
+    # ---------- FALLBACK (what you were seeing) ----------
+    # if we’re here, Coinbase said no – we make a wave
+    now = datetime.utcnow()
+    points = []
+    for i in range(60):
+        t = now - timedelta(minutes=(60 - i) * 10)
+        base = FALLBACK_PRICES.get(symbol, 100.0)
+        wobble = base * 0.012 * __import__("math").sin(i / 6)
+        points.append({"t": t.isoformat() + "Z", "p": round(base + wobble, 4)})
+
+    if mode == "candles":
+        candles = []
+        for p in points:
+            price = p["p"]
             candles.append(
                 {
-                    "t": t.isoformat() + "Z",
-                    "o": round(o, 4),
-                    "h": round(high, 4),
-                    "l": round(low, 4),
-                    "c": round(c, 4),
+                    "t": p["t"],
+                    "o": price * 0.999,
+                    "h": price * 1.004,
+                    "l": price * 0.996,
+                    "c": price * 1.001,
                 }
             )
+        return {
+            "symbol": symbol,
+            "span": span,
+            "mode": mode,
+            "source": "mock",
+            "candles": candles,
+        }
 
-    payload = {
+    return {
         "symbol": symbol,
         "span": span,
         "mode": mode,
-        "generated_at": now.isoformat() + "Z",
+        "source": "mock",
+        "points": points,
     }
-
-    if mode == "candles":
-        payload["candles"] = candles
-    else:
-        payload["points"] = line_points
-
-    return JSONResponse(payload)
 
 
 if __name__ == "__main__":
