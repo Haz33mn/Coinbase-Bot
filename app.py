@@ -1,12 +1,10 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
-from datetime import datetime, timedelta
 import random
-import os
 
 app = FastAPI()
 
-# pretend data – same pairs you see in the UI
+# coins we show in the UI
 MOCK_PRICES = {
     "BTC-USD": 110_245.315,
     "ETH-USD": 3_876.465,
@@ -24,94 +22,83 @@ MOCK_PRICES = {
 def health():
     return {"status": "ok"}
 
-# serve index.html (your UI)
+# serve the UI
 @app.get("/", response_class=HTMLResponse)
 def root():
-    # render/index.html is in same folder
     with open("index.html", "r", encoding="utf-8") as f:
         return f.read()
 
-# 1) prices: UI hits /prices first
+# frontend calls this first
 @app.get("/prices")
 def get_prices():
-    # in real life you'd call Coinbase here
     return MOCK_PRICES
 
-# 2) signals: UI sorts these to “Top 10 best performing”
+# frontend uses this to sort “top 10 best performing”
 @app.get("/signals")
 def get_signals():
-    signals = {}
-    for pair, price in MOCK_PRICES.items():
-        # dumb scoring so UI has something to sort
-        # make bigger coins more "confident"
-        base_conf = 0.5
-        if pair == "BTC-USD":
+    data = {}
+    for pair in MOCK_PRICES.keys():
+        # make it look real-ish
+        r = random.random()
+        if r < 0.25:
+            signal = "BUY"
+            conf = 0.82
+        elif r < 0.6:
             signal = "HOLD"
-            confidence = 0.5
-        elif pair == "ETH-USD":
-            signal = "SELL"
-            confidence = 0.8
+            conf = 0.50
         else:
-            # random-ish but stable enough
-            roll = random.random()
-            if roll < 0.35:
-                signal = "BUY"
-                confidence = 0.82
-            elif roll < 0.6:
-                signal = "HOLD"
-                confidence = 0.5
-            else:
-                signal = "SELL"
-                confidence = 0.8
-        signals[pair] = {
-            "signal": signal,
-            "confidence": confidence if confidence else base_conf,
-        }
-    return signals
+            signal = "SELL"
+            conf = 0.80
 
-# 3) candles: UI hits /candles/{pair}?range=24h etc.
+        # keep BTC/LTC neutral
+        if pair in ("BTC-USD", "LTC-USD"):
+            signal = "HOLD"
+            conf = 0.50
+
+        data[pair] = {
+            "signal": signal,
+            "confidence": conf,
+        }
+    return data
+
+# this was the one failing
 @app.get("/candles/{pair}")
 def get_candles(pair: str, range: str = "24h"):
-    # we don't have real Coinbase candles on free Render, so fake it
-    # frontend only needs the shape: [{open,high,low,close,timestamp}, ...]
-    price = float(MOCK_PRICES.get(pair, 100.0))
-
+    # super simple fake series – the UI just needs this shape
+    base = float(MOCK_PRICES.get(pair, 100.0))
+    # how many points we want on the chart
     if range == "24h":
-        count = 48          # 30-min candles
-        step = timedelta(minutes=30)
-        vol = 0.012
+        n = 50
     elif range == "1m":
-        count = 30          # daily candles
-        step = timedelta(days=1)
-        vol = 0.03
+        n = 60
     elif range == "6m":
-        count = 26          # weekly
-        step = timedelta(weeks=1)
-        vol = 0.055
-    else:   # 1y
-        count = 52
-        step = timedelta(weeks=1)
-        vol = 0.08
+        n = 70
+    else:
+        n = 80
 
     candles = []
-    now = datetime.utcnow()
-    cur = price
+    price = base
+    for i in range(n):
+        # random walk
+        step = base * 0.004
+        price_change = random.uniform(-step, step)
+        open_ = price
+        close = max(0.0001, price + price_change)
+        high = max(open_, close) + random.uniform(0, step * 0.4)
+        low = min(open_, close) - random.uniform(0, step * 0.4)
+        price = close
 
-    for i in range(count):
-        # move price a little
-        change = (random.random() - 0.5) * 2 * vol * price
-        open_ = cur
-        close = max(0.0001, cur + change)
-        high = max(open_, close) + random.random() * vol * price * 0.4
-        low = min(open_, close) - random.random() * vol * price * 0.4
-        ts = (now - step * (count - i)).isoformat() + "Z"
         candles.append({
             "open": round(open_, 6),
             "high": round(high, 6),
             "low": round(low, 6),
             "close": round(close, 6),
-            "timestamp": ts,
+            # frontend doesn't care about exact time, just needs *something*
+            "timestamp": i,
         })
-        cur = close
 
-    return {"pair": pair, "range": range, "candles": candles}
+    return {
+        "pair": pair,
+        "range": range,
+        "candles": candles,
+    }
