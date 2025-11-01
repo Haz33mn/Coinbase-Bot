@@ -1,26 +1,52 @@
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+import datetime
+import math
 import random
-import copy
 
 app = FastAPI()
 
-# base prices we start from
-BASE_PRICES = {
-    "BTC-USD": 110_245.315,
-    "ETH-USD": 3_876.465,
-    "SOL-USD": 186.005,
-    "ADA-USD": 0.613,
-    "DOGE-USD": 0.187,
-    "AVAX-USD": 18.635,
-    "LTC-USD": 99.64,
-    "DOT-USD": 2.948,
-    "BCH-USD": 554.105,
-    "LINK-USD": 17.229,
-}
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# we keep a mutable copy so prices can move a LITTLE
-CURRENT_PRICES = copy.deepcopy(BASE_PRICES)
+# base coins we'll show
+BASE_COINS = [
+    {"symbol": "BTC-USD", "price": 109_785.923, "change_24h": -0.7},
+    {"symbol": "ETH-USD", "price": 3_828.794, "change_24h": 0.3},
+    {"symbol": "BCH-USD", "price": 553.041, "change_24h": 0.9},
+    {"symbol": "SOL-USD", "price": 186.408, "change_24h": -2.4},
+    {"symbol": "LTC-USD", "price": 98.375, "change_24h": 1.9},
+    {"symbol": "AVAX-USD", "price": 18.504, "change_24h": -3.1},
+    {"symbol": "LINK-USD", "price": 17.208, "change_24h": 2.2},
+    {"symbol": "DOT-USD", "price": 2.961, "change_24h": -1.2},
+    {"symbol": "ADA-USD", "price": 0.617, "change_24h": 0.1},
+    {"symbol": "DOGE-USD", "price": 0.188, "change_24h": -0.5},
+]
+
+
+def classify_signal(pct_change: float):
+    """
+    low-sensitivity signals so it doesn't flip every few cents
+    """
+    if pct_change <= -3:
+        return "BUY", 82
+    if pct_change <= -1.5:
+        return "BUY", 68
+    if pct_change < 1.5:
+        return "HOLD", 50
+    if pct_change < 3:
+        return "SELL", 68
+    return "SELL", 82
+
+
+@app.get("/")
+def root():
+    return FileResponse("index.html")
 
 
 @app.get("/health")
@@ -28,101 +54,77 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/", response_class=HTMLResponse)
-def root():
-    # serve the UI
-    with open("index.html", "r", encoding="utf-8") as f:
-        return f.read()
-
-
-def _tiny_tick():
-    """move each price by <=0.25% so it looks alive but not crazy"""
-    for pair, price in CURRENT_PRICES.items():
-        # small random -0.25% .. +0.25%
-        pct = random.uniform(-0.0025, 0.0025)
-        CURRENT_PRICES[pair] = round(price * (1 + pct), 6)
-
-
 @app.get("/prices")
-def get_prices():
-    # wiggle a bit every call
-    _tiny_tick()
-    return CURRENT_PRICES
+def prices():
+    coins_out = []
+    for c in BASE_COINS:
+        # tiny wiggle so UI looks alive
+        wiggle = random.uniform(-0.08, 0.08)
+        pct = c["change_24h"] + wiggle
+        signal, conf = classify_signal(pct)
+        coins_out.append(
+            {
+                "symbol": c["symbol"],
+                "price": round(c["price"], 6),
+                "change_24h": round(pct, 3),
+                "signal": signal,
+                "confidence": conf,
+            }
+        )
+
+    # sort by best performing
+    coins_out.sort(key=lambda x: x["change_24h"], reverse=True)
+
+    return {
+        "updated": datetime.datetime.utcnow().isoformat() + "Z",
+        "coins": coins_out,
+    }
 
 
-@app.get("/signals")
-def get_signals():
+@app.get("/history")
+def history(symbol: str, range: str = "24h", mode: str = "line"):
     """
-    REAL FIX HERE:
-    - if move < 1.5%  -> HOLD 50%
-    - if move >= 1.5% -> BUY 82%
-    - if move <= -1.5% -> SELL 80%
-    this stops the “it changes on every penny” problem
+    generate nice OHLC points for the frontend
     """
-    signals = {}
-    for pair, cur in CURRENT_PRICES.items():
-        base = BASE_PRICES.get(pair, cur)
-        if base <= 0:
-            signals[pair] = {"signal": "HOLD", "confidence": 0.5}
-            continue
+    coin = next((c for c in BASE_COINS if c["symbol"] == symbol), None)
+    if coin is None:
+        return JSONResponse({"error": "symbol not found"}, status_code=404)
 
-        change_pct = (cur - base) / base * 100  # %
-        abs_change = abs(change_pct)
-
-        if abs_change < 1.5:      # < 1.5% → too small → HOLD
-            sig = "HOLD"
-            conf = 0.5
-        elif change_pct >= 1.5:   # up more than 1.5% → BUY
-            sig = "BUY"
-            conf = 0.82
-        else:                     # down more than 1.5% → SELL
-            sig = "SELL"
-            conf = 0.80
-
-        # keep BTC a bit calmer
-        if pair == "BTC-USD" and sig != "HOLD":
-            sig = "HOLD"
-            conf = 0.5
-
-        signals[pair] = {"signal": sig, "confidence": conf}
-
-    return signals
-
-
-@app.get("/candles/{pair}")
-def get_candles(pair: str, range: str = "24h"):
-    """
-    super-safe candles: ALWAYS return a list
-    so frontend never shows 'failed'
-    """
-    base = float(CURRENT_PRICES.get(pair, 100.0))
+    base_price = coin["price"]
 
     if range == "24h":
         n = 60
-    elif range == "1m":
-        n = 60
-    elif range == "6m":
-        n = 70
-    else:
-        n = 80
+    elif range == "1M":
+        n = 90
+    elif range == "6M":
+        n = 120
+    else:  # 1Y
+        n = 140
 
-    candles = []
-    price = base
-    step_abs = base * 0.004
-
+    points = []
     for i in range(n):
-        diff = random.uniform(-step_abs, step_abs)
-        open_ = price
-        close = max(0.0001, price + diff)
-        high = max(open_, close) + random.uniform(0, step_abs * 0.3)
-        low = min(open_, close) - random.uniform(0, step_abs * 0.3)
-        price = close
-        candles.append({
-            "open": round(open_, 6),
-            "high": round(high, 6),
-            "low": round(low, 6),
-            "close": round(close, 6),
-            "timestamp": i
-        })
+        wave = math.sin(i / 6) * (base_price * 0.015)  # ±1.5%
+        center = base_price + wave
+        candle_height = center * 0.004  # 0.4%
 
-    return {"pair": pair, "range": range, "candles": candles}
+        open_p = center - candle_height * 0.25
+        close_p = center + candle_height * 0.25
+        high_p = center + candle_height
+        low_p = center - candle_height
+
+        points.append(
+            {
+                "t": i,
+                "o": round(open_p, 6),
+                "h": round(high_p, 6),
+                "l": round(low_p, 6),
+                "c": round(close_p, 6),
+            }
+        )
+
+    return {
+        "symbol": symbol,
+        "range": range,
+        "mode": mode,
+        "points": points,
+    }
