@@ -22,10 +22,15 @@ def check():
     env_ok = bool(key_id and private_key)
 
     # 2) ping a public Coinbase endpoint (no auth)
+    coinbase_ok = False
     try:
-        r = requests.get("https://api.coinbase.com/api/v3/brokerage/products", timeout=5)
-        coinbase_ok = r.status_code == 200
-    except Exception as e:
+        resp = requests.get(
+            "https://api.coinbase.com/api/v3/brokerage/products",
+            timeout=5
+        )
+        if resp.status_code == 200:
+            coinbase_ok = True
+    except Exception:
         coinbase_ok = False
 
     return {
