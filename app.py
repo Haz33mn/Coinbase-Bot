@@ -1,11 +1,12 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 import random
+import copy
 
 app = FastAPI()
 
-# coins we show in the UI
-MOCK_PRICES = {
+# base prices we start from
+BASE_PRICES = {
     "BTC-USD": 110_245.315,
     "ETH-USD": 3_876.465,
     "SOL-USD": 186.005,
@@ -18,57 +19,86 @@ MOCK_PRICES = {
     "LINK-USD": 17.229,
 }
 
+# we keep a mutable copy so prices can move a LITTLE
+CURRENT_PRICES = copy.deepcopy(BASE_PRICES)
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
-# serve the UI
+
 @app.get("/", response_class=HTMLResponse)
 def root():
+    # serve the UI
     with open("index.html", "r", encoding="utf-8") as f:
         return f.read()
 
-# frontend calls this first
+
+def _tiny_tick():
+    """move each price by <=0.25% so it looks alive but not crazy"""
+    for pair, price in CURRENT_PRICES.items():
+        # small random -0.25% .. +0.25%
+        pct = random.uniform(-0.0025, 0.0025)
+        CURRENT_PRICES[pair] = round(price * (1 + pct), 6)
+
+
 @app.get("/prices")
 def get_prices():
-    return MOCK_PRICES
+    # wiggle a bit every call
+    _tiny_tick()
+    return CURRENT_PRICES
 
-# frontend uses this to sort “top 10 best performing”
+
 @app.get("/signals")
 def get_signals():
-    data = {}
-    for pair in MOCK_PRICES.keys():
-        # make it look real-ish
-        r = random.random()
-        if r < 0.25:
-            signal = "BUY"
+    """
+    REAL FIX HERE:
+    - if move < 1.5%  -> HOLD 50%
+    - if move >= 1.5% -> BUY 82%
+    - if move <= -1.5% -> SELL 80%
+    this stops the “it changes on every penny” problem
+    """
+    signals = {}
+    for pair, cur in CURRENT_PRICES.items():
+        base = BASE_PRICES.get(pair, cur)
+        if base <= 0:
+            signals[pair] = {"signal": "HOLD", "confidence": 0.5}
+            continue
+
+        change_pct = (cur - base) / base * 100  # %
+        abs_change = abs(change_pct)
+
+        if abs_change < 1.5:      # < 1.5% → too small → HOLD
+            sig = "HOLD"
+            conf = 0.5
+        elif change_pct >= 1.5:   # up more than 1.5% → BUY
+            sig = "BUY"
             conf = 0.82
-        elif r < 0.6:
-            signal = "HOLD"
-            conf = 0.50
-        else:
-            signal = "SELL"
+        else:                     # down more than 1.5% → SELL
+            sig = "SELL"
             conf = 0.80
 
-        # keep BTC/LTC neutral
-        if pair in ("BTC-USD", "LTC-USD"):
-            signal = "HOLD"
-            conf = 0.50
+        # keep BTC a bit calmer
+        if pair == "BTC-USD" and sig != "HOLD":
+            sig = "HOLD"
+            conf = 0.5
 
-        data[pair] = {
-            "signal": signal,
-            "confidence": conf,
-        }
-    return data
+        signals[pair] = {"signal": sig, "confidence": conf}
 
-# this was the one failing
+    return signals
+
+
 @app.get("/candles/{pair}")
 def get_candles(pair: str, range: str = "24h"):
-    # super simple fake series – the UI just needs this shape
-    base = float(MOCK_PRICES.get(pair, 100.0))
-    # how many points we want on the chart
+    """
+    super-safe candles: ALWAYS return a list
+    so frontend never shows 'failed'
+    """
+    base = float(CURRENT_PRICES.get(pair, 100.0))
+
     if range == "24h":
-        n = 50
+        n = 60
     elif range == "1m":
         n = 60
     elif range == "6m":
@@ -78,27 +108,21 @@ def get_candles(pair: str, range: str = "24h"):
 
     candles = []
     price = base
-    for i in range(n):
-        # random walk
-        step = base * 0.004
-        price_change = random.uniform(-step, step)
-        open_ = price
-        close = max(0.0001, price + price_change)
-        high = max(open_, close) + random.uniform(0, step * 0.4)
-        low = min(open_, close) - random.uniform(0, step * 0.4)
-        price = close
+    step_abs = base * 0.004
 
+    for i in range(n):
+        diff = random.uniform(-step_abs, step_abs)
+        open_ = price
+        close = max(0.0001, price + diff)
+        high = max(open_, close) + random.uniform(0, step_abs * 0.3)
+        low = min(open_, close) - random.uniform(0, step_abs * 0.3)
+        price = close
         candles.append({
             "open": round(open_, 6),
             "high": round(high, 6),
             "low": round(low, 6),
             "close": round(close, 6),
-            # frontend doesn't care about exact time, just needs *something*
-            "timestamp": i,
+            "timestamp": i
         })
 
-    return {
-        "pair": pair,
-        "range": range,
-        "candles": candles,
-    }
+    return {"pair": pair, "range": range, "candles": candles}
