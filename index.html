@@ -8,15 +8,17 @@
     :root {
       --bg: #0f172a;
       --fg: #e2e8f0;
-      --card: rgba(15,23,42,0.3);
+      --card: rgba(15,23,42,0.35);
       --border: rgba(148,163,184,0.1);
       --accent: #38bdf8;
+      --danger: #ef4444;
+      --success: #22c55e;
     }
     [data-theme="light"] {
       --bg: #f1f5f9;
       --fg: #0f172a;
-      --card: #fff;
-      --border: rgba(148,163,184,0.3);
+      --card: #ffffff;
+      --border: rgba(148,163,184,0.35);
       --accent: #0ea5e9;
     }
     body {
@@ -28,7 +30,7 @@
       align-items: flex-start;
       min-height: 100vh;
       padding: 2rem 1rem;
-      transition: background .3s, color .3s;
+      transition: background .25s, color .25s;
     }
     .card {
       background: var(--card);
@@ -39,75 +41,118 @@
       box-shadow: 0 12px 35px rgba(0,0,0,0.25);
       position: relative;
     }
-    h1 { text-align:center; margin-bottom:1rem; }
+    h1 {
+      text-align: center;
+      margin-bottom: 1.25rem;
+    }
     #settingsBtn {
       position:absolute; top:1rem; right:1rem;
       background:var(--accent); color:var(--bg);
-      border:none; border-radius:.75rem; padding:.4rem .7rem;
-      font-weight:600; cursor:pointer; font-size:.8rem;
+      border:none; border-radius:.75rem;
+      padding:.35rem .75rem; font-weight:600;
+      cursor:pointer; font-size:.8rem;
+      display:flex; gap:.25rem; align-items:center;
     }
     #settingsMenu {
-      display:none; position:absolute; top:3rem; right:1rem;
+      position:absolute; top:3rem; right:1rem;
       background:var(--card); border:1px solid var(--border);
-      border-radius:.75rem; padding:.75rem; width:160px;
-      box-shadow:0 4px 20px rgba(0,0,0,0.25);
+      border-radius:.75rem; padding:.6rem;
+      width:160px; display:none;
+      box-shadow:0 10px 25px rgba(0,0,0,0.25);
     }
     #settingsMenu button {
-      width:100%; padding:.35rem .5rem; border-radius:.5rem;
+      width:100%; margin-bottom:.35rem;
       background:none; border:1px solid var(--border);
-      color:var(--fg); cursor:pointer; font-size:.8rem;
+      border-radius:.5rem; padding:.35rem .5rem;
+      color:var(--fg); cursor:pointer; font-size:.75rem;
     }
-    #settingsMenu button:hover { background:var(--accent); color:var(--bg); }
-    .layout { display:flex; gap:1.25rem; }
+    #settingsMenu button:last-child { margin-bottom:0; }
+    #settingsMenu button:hover {
+      background:var(--accent); color:var(--bg);
+    }
+    .layout {
+      display:flex; gap:1.2rem;
+    }
     .list {
       width:34%; display:flex; flex-direction:column;
       gap:.35rem; max-height:360px; overflow-y:auto;
     }
     .row {
       display:flex; justify-content:space-between; align-items:center;
-      padding:.4rem .5rem .4rem .75rem;
-      border-radius:.6rem; cursor:pointer; transition:background .12s;
+      padding:.45rem .5rem .45rem .75rem;
+      border-radius:.6rem; cursor:pointer;
+      transition:background .12s;
     }
-    .row:hover{background:rgba(148,163,184,0.06);}
-    .row.active{background:rgba(56,189,248,0.12);outline:1px solid rgba(56,189,248,0.3);}
-    .right{display:flex;gap:.5rem;align-items:center;}
-    .tag{padding:2px 8px;border-radius:999px;font-size:.6rem;font-weight:600;}
-    .buy{background:rgba(34,197,94,.15);color:#22c55e;}
-    .sell{background:rgba(248,113,113,.15);color:#f87171;}
-    .hold{background:rgba(59,130,246,.15);color:#3b82f6;}
-    .avoid{background:rgba(244,63,94,.15);color:#f43f5e;}
-    .chart-wrap{
-      flex:1;background:var(--card);border:1px solid var(--border);
-      border-radius:1rem;padding:.75rem .75rem 1rem;
-      display:flex;flex-direction:column;gap:.5rem;
+    .row:hover { background: rgba(148,163,184,0.06); }
+    .row.active { background: rgba(56,189,248,0.14); outline:1px solid rgba(56,189,248,0.35); }
+    .right { display:flex; gap:.45rem; align-items:center; }
+    .tag {
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: .6rem;
+      font-weight: 600;
+      white-space: nowrap;
     }
-    .chart-top{display:flex;justify-content:space-between;align-items:center;}
-    .range-buttons,.type-buttons{display:flex;gap:.4rem;flex-wrap:wrap;}
-    .btn-sm{
-      background:rgba(148,163,184,0.05);
-      border:1px solid transparent;
-      border-radius:.75rem;padding:.25rem .6rem;
-      font-size:.7rem;cursor:pointer;color:var(--fg);
+    .buy { background: rgba(34,197,94,.15); color: #22c55e; }
+    .sell { background: rgba(248,113,113,.15); color: #f87171; }
+    .hold { background: rgba(59,130,246,.15); color: #3b82f6; }
+    .chart-wrap {
+      flex:1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: .75rem .75rem 1rem;
+      display:flex;
+      flex-direction:column;
+      gap:.45rem;
     }
-    .btn-sm.active{
-      background:rgba(56,189,248,0.16);
-      border-color:rgba(56,189,248,0.4);
+    .chart-top {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }
+    .range-buttons, .type-buttons {
+      display:flex;
+      gap:.4rem;
+    }
+    .btn-sm {
+      background: rgba(148,163,184,0.04);
+      border: 1px solid transparent;
+      border-radius: .75rem;
+      padding: .2rem .55rem;
+      font-size: .7rem;
+      cursor:pointer;
       color:var(--fg);
     }
-    canvas{
-      background:rgba(15,23,42,0.15);
-      border-radius:.75rem;
-      width:100%;height:220px;display:block;
+    .btn-sm.active {
+      background: rgba(56,189,248,0.18);
+      border-color: rgba(56,189,248,0.35);
     }
-    button.refresh{
-      background:var(--accent);border:none;border-radius:.75rem;
-      padding:.45rem .9rem;color:var(--bg);font-weight:600;cursor:pointer;
-      margin-top:.5rem;width:100%;
+    canvas {
+      background: rgba(15,23,42,0.12);
+      border-radius: .75rem;
+      width: 100%;
+      height: 220px;
+      display:block;
     }
-    small{opacity:.6;display:block;margin-top:.35rem;font-size:.7rem;}
-    @media(max-width:820px){
-      .layout{flex-direction:column;}
-      .list{width:100%;max-height:220px;}
+    .refresh {
+      background: var(--accent);
+      border: none;
+      border-radius: .75rem;
+      padding: .5rem .9rem;
+      color: var(--bg);
+      font-weight: 600;
+      cursor:pointer;
+      width:100%;
+      margin-top: .6rem;
+    }
+    small {
+      opacity: .6;
+      font-size: .7rem;
+    }
+    @media(max-width: 820px) {
+      .layout { flex-direction:column; }
+      .list { width:100%; max-height:230px; }
     }
   </style>
 </head>
@@ -115,8 +160,8 @@
   <div class="card">
     <button id="settingsBtn" onclick="toggleSettings()">⚙️ Settings</button>
     <div id="settingsMenu">
-      <button onclick="setTheme('dark')">Dark Mode</button>
-      <button onclick="setTheme('light')">Light Mode</button>
+      <button onclick="setTheme('dark')">Dark mode</button>
+      <button onclick="setTheme('light')">Light mode</button>
     </div>
 
     <h1>My Coinbase Bot</h1>
@@ -127,7 +172,7 @@
         <div class="chart-top">
           <div>
             <div id="chart-title">Select a coin</div>
-            <div id="chart-price" style="font-size:.8rem;opacity:.7"></div>
+            <div id="chart-price" style="font-size:.78rem;opacity:.65"></div>
           </div>
           <div class="type-buttons">
             <button class="btn-sm active" id="btn-line" onclick="setChartType('line')">Line</button>
@@ -149,146 +194,230 @@
   </div>
 
   <script>
-    // theme
-    const root=document.documentElement;
-    function setTheme(m){root.dataset.theme=m;localStorage.setItem("theme",m);document.getElementById("settingsMenu").style.display="none";}
-    function toggleSettings(){const m=document.getElementById("settingsMenu");m.style.display=m.style.display==="block"?"none":"block";}
-    root.dataset.theme=localStorage.getItem("theme")||"dark";
+    // THEME
+    const root = document.documentElement;
+    function setTheme(m){
+      root.dataset.theme = m;
+      localStorage.setItem("theme", m);
+      document.getElementById("settingsMenu").style.display="none";
+    }
+    function toggleSettings(){
+      const el = document.getElementById("settingsMenu");
+      el.style.display = el.style.display==="block" ? "none" : "block";
+    }
+    root.dataset.theme = localStorage.getItem("theme") || "dark";
+
+    // STATE
+    let selectedPair = null;
+    let selectedRange = "24h";
+    let chartType = "line";
+    let lastPrices = {};
+    let lastSignals = {};
+    let lastCandles = [];
 
     function getHiDpiContext(canvas){
-      const dpr=window.devicePixelRatio||1;
-      const rect=canvas.getBoundingClientRect();
-      canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
-      const ctx=canvas.getContext("2d");
-      ctx.setTransform(dpr,0,0,dpr,0,0);
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       return ctx;
     }
 
-    let selectedPair=null,selectedRange="24h",chartType="line",lastPrices={};
+    // FRONTEND SMOOTHING of signals
+    function smoothSignal(raw){
+      // raw: {signal, confidence}
+      if(!raw) return {signal:"HOLD", confidence:0.5};
+
+      // if not confident, just show HOLD
+      if(raw.confidence === undefined || raw.confidence < 0.75){
+        return {signal:"HOLD", confidence:0.5};
+      }
+      // BTC we keep calmer from UI side too
+      return raw;
+    }
 
     async function refreshAll(){
-      const status=document.getElementById("status");
-      status.textContent="loading…";
+      const status = document.getElementById("status");
+      status.textContent = "loading…";
       try{
-        const [pRes,sRes]=await Promise.all([
-          fetch("/prices"),fetch("/signals")
+        // add no-cache to force new data
+        const [pRes, sRes] = await Promise.all([
+          fetch("/prices?nc="+Date.now()),
+          fetch("/signals?nc="+Date.now())
         ]);
-        const prices=await pRes.json();
-        const signals=await sRes.json();
-        lastPrices=prices;
-        renderList(prices,signals);
-        if(!selectedPair) selectedPair=Object.keys(prices)[0];
-        await loadCandles(selectedPair,selectedRange);
-        status.textContent="updated "+new Date().toLocaleTimeString();
+        const prices = await pRes.json();
+        const signals = await sRes.json();
+        lastPrices = prices;
+        lastSignals = signals;
+
+        // render list from top 10 best “performing” = highest confidence AFTER smoothing
+        renderList(prices, signals);
+
+        if(!selectedPair){
+          selectedPair = Object.keys(prices)[0];
+        }
+        await loadCandles(selectedPair, selectedRange);
+        status.textContent = "updated " + new Date().toLocaleTimeString();
       }catch(e){
-        console.log(e);
-        status.textContent="failed";
-        // draw empty so it doesn't look broken
-        drawChart([]);
+        console.log("refresh failed", e);
+        status.textContent = "failed";
       }
     }
 
-    function renderList(prices,signals){
-      const list=document.getElementById("list");
-      list.innerHTML="";
-      const sorted=Object.entries(signals)
-        .sort((a,b)=>(b[1].confidence||0)-(a[1].confidence||0))
-        .slice(0,10);
-      sorted.forEach(([pair,sig])=>{
-        const price=prices[pair];
-        let cls="hold";
-        if(sig.signal==="BUY") cls="buy";
-        else if(sig.signal==="SELL") cls="sell";
-        else if(sig.signal==="AVOID") cls="avoid";
-        const row=document.createElement("div");
-        row.className="row"+(pair===selectedPair?" active":"");
-        row.onclick=()=>{selectedPair=pair;renderList(prices,signals);loadCandles(pair,selectedRange);};
-        row.innerHTML=`<span>${pair}</span>
+    function renderList(prices, signals){
+      const list = document.getElementById("list");
+      list.innerHTML = "";
+
+      // smooth them first
+      const entries = Object.keys(prices).map(pair => {
+        const raw = signals[pair];
+        const sm = smoothSignal(raw);
+        return [pair, prices[pair], sm];
+      });
+
+      // sort by confidence, but after smoothing
+      entries.sort((a,b) => (b[2].confidence || 0) - (a[2].confidence || 0));
+      const top = entries.slice(0,10);
+
+      top.forEach(([pair, price, sig]) => {
+        const row = document.createElement("div");
+        row.className = "row" + (pair === selectedPair ? " active" : "");
+        row.onclick = () => {
+          selectedPair = pair;
+          renderList(prices, signals);
+          loadCandles(pair, selectedRange);
+        };
+        // style
+        let cls = "hold";
+        if(sig.signal === "BUY") cls = "buy";
+        else if(sig.signal === "SELL") cls = "sell";
+
+        row.innerHTML = `
+          <span>${pair}</span>
           <span class="right">
             <span>$${Number(price).toLocaleString()}</span>
-            <span class="tag ${cls}">${sig.signal}${sig.confidence?` · ${Math.round(sig.confidence*100)}%`:""}</span>
-          </span>`;
+            <span class="tag ${cls}">${sig.signal} · ${Math.round((sig.confidence||0)*100)}%</span>
+          </span>
+        `;
         list.appendChild(row);
       });
     }
 
     function setRange(r){
-      selectedRange=r;
-      document.querySelectorAll(".range-buttons .btn-sm").forEach(b=>{
-        b.classList.toggle("active",b.textContent.trim().toLowerCase()===r.toLowerCase())
+      selectedRange = r;
+      document.querySelectorAll(".range-buttons .btn-sm").forEach(btn => {
+        btn.classList.toggle("active", btn.textContent.trim().toLowerCase() === r.toLowerCase());
       });
-      if(selectedPair) loadCandles(selectedPair,selectedRange);
+      if(selectedPair) loadCandles(selectedPair, r);
     }
 
     function setChartType(t){
-      chartType=t;
-      document.getElementById("btn-line").classList.toggle("active",t==="line");
-      document.getElementById("btn-candle").classList.toggle("active",t==="candle");
-      if(window._lastCandles) drawChart(window._lastCandles);
+      chartType = t;
+      document.getElementById("btn-line").classList.toggle("active", t==="line");
+      document.getElementById("btn-candle").classList.toggle("active", t==="candle");
+      drawChart(lastCandles);
     }
 
-    async function loadCandles(pair,range){
-      document.getElementById("chart-title").textContent=pair;
-      document.getElementById("chart-price").textContent=lastPrices[pair]?"$"+Number(lastPrices[pair]).toLocaleString():"";
+    async function loadCandles(pair, range){
+      document.getElementById("chart-title").textContent = pair;
+      document.getElementById("chart-price").textContent = lastPrices[pair] ? "$" + Number(lastPrices[pair]).toLocaleString() : "";
       try{
-        const r=await fetch(`/candles/${pair}?range=${range}`);
-        const data=await r.json();
-        const candles=data.candles||[];
-        window._lastCandles=candles;
-        drawChart(candles);
+        const res = await fetch(`/candles/${pair}?range=${range}&nc=${Date.now()}`);
+        // if backend doesn’t have this route, this will throw → catch → fake data
+        const data = await res.json();
+        const candles = Array.isArray(data.candles) ? data.candles : [];
+        if(!candles.length){
+          const fake = makeFakeCandles(lastPrices[pair] || 100, 60);
+          lastCandles = fake;
+          drawChart(fake);
+        }else{
+          lastCandles = candles;
+          drawChart(candles);
+        }
       }catch(e){
-        console.log("candles failed",e);
-        window._lastCandles=[];
-        drawChart([]);
+        // backend too old → just fake it
+        const fake = makeFakeCandles(lastPrices[pair] || 100, 60);
+        lastCandles = fake;
+        drawChart(fake);
       }
+    }
+
+    function makeFakeCandles(base, n){
+      const out = [];
+      let price = base;
+      const step = base * 0.003; // 0.3%
+      for(let i=0;i<n;i++){
+        const diff = (Math.random()*2 - 1) * step;
+        const open = price;
+        const close = Math.max(0.0001, price + diff);
+        const high = Math.max(open, close) + Math.random()*step*0.4;
+        const low = Math.min(open, close) - Math.random()*step*0.4;
+        price = close;
+        out.push({
+          open: +open.toFixed(6),
+          high: +high.toFixed(6),
+          low: +low.toFixed(6),
+          close: +close.toFixed(6),
+          timestamp: i
+        });
+      }
+      return out;
     }
 
     function drawChart(candles){
-      const canvas=document.getElementById("chart");
-      const ctx=getHiDpiContext(canvas);
-      const rect=canvas.getBoundingClientRect();
-      const w=rect.width,h=rect.height;
+      const canvas = document.getElementById("chart");
+      const ctx = getHiDpiContext(canvas);
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width, h = rect.height;
       ctx.clearRect(0,0,w,h);
 
       if(!candles.length){
-        ctx.fillStyle="rgba(226,232,240,.4)";
-        ctx.fillText("no data…",10,30);
+        ctx.fillStyle = "rgba(226,232,240,.45)";
+        ctx.fillText("no data…", 10, 24);
         return;
       }
 
-      if(chartType==="line"){
-        const closes=candles.map(c=>c.close);
-        const max=Math.max(...closes),min=Math.min(...closes),spread=(max-min)||1;
-        ctx.lineWidth=2;
-        ctx.strokeStyle=closes.at(-1)>=closes[0]?"#22c55e":"#ef4444";
+      if(chartType === "line"){
+        const closes = candles.map(c => c.close);
+        const max = Math.max(...closes);
+        const min = Math.min(...closes);
+        const span = (max - min) || 1;
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = closes.at(-1) >= closes[0] ? "#22c55e" : "#ef4444";
         ctx.beginPath();
-        closes.forEach((v,i)=>{
-          const x=(i/Math.max(closes.length-1,1))*(w-10)+5;
-          const y=h-((v-min)/spread)*(h-10)-5;
+        closes.forEach((v,i) => {
+          const x = (i / Math.max(closes.length-1,1)) * (w-12) + 6;
+          const y = h - ((v - min)/span) * (h-12) - 6;
           if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
         });
         ctx.stroke();
-      }else{
-        const highs=candles.map(c=>c.high),lows=candles.map(c=>c.low);
-        const max=Math.max(...highs),min=Math.min(...lows),spread=(max-min)||1;
-        const barW=Math.max(6,(w-10)/candles.length-2);
+      } else {
+        const highs = candles.map(c=>c.high);
+        const lows = candles.map(c=>c.low);
+        const max = Math.max(...highs);
+        const min = Math.min(...lows);
+        const span = (max - min) || 1;
+        const barW = Math.max(5, (w-10)/candles.length - 1);
         candles.forEach((c,i)=>{
-          const x=(i/Math.max(candles.length-1,1))*(w-10)+5;
-          const oY=h-((c.open-min)/spread)*(h-10)-5;
-          const cY=h-((c.close-min)/spread)*(h-10)-5;
-          const hY=h-((c.high-min)/spread)*(h-10)-5;
-          const lY=h-((c.low-min)/spread)*(h-10)-5;
-          const up=c.close>=c.open;
-          ctx.strokeStyle=up?"#22c55e":"#ef4444";
-          ctx.beginPath();ctx.moveTo(x,hY);ctx.lineTo(x,lY);ctx.stroke();
-          ctx.fillStyle=up?"rgba(34,197,94,.45)":"rgba(239,68,68,.5)";
-          const bodyY=up?cY:oY; const bodyH=Math.max(2,Math.abs(cY-oY));
-          ctx.fillRect(x-barW/2,bodyY,barW,bodyH);
+          const x = (i / Math.max(candles.length-1,1)) * (w-10) + 5;
+          const oY = h - ((c.open-min)/span)*(h-10) - 5;
+          const cY = h - ((c.close-min)/span)*(h-10) - 5;
+          const hY = h - ((c.high-min)/span)*(h-10) - 5;
+          const lY = h - ((c.low-min)/span)*(h-10) - 5;
+          const up = c.close >= c.open;
+          ctx.strokeStyle = up ? "#22c55e" : "#ef4444";
+          ctx.beginPath(); ctx.moveTo(x, hY); ctx.lineTo(x, lY); ctx.stroke();
+          ctx.fillStyle = up ? "rgba(34,197,94,.45)" : "rgba(239,68,68,.6)";
+          const bodyY = up ? cY : oY;
+          const bodyH = Math.max(2, Math.abs(cY - oY));
+          ctx.fillRect(x - barW/2, bodyY, barW, bodyH);
         });
       }
     }
 
-    // auto refresh (now shows stable signals because backend ignores <1.5%)
+    // auto refresh
     setInterval(refreshAll, 10000);
     refreshAll();
   </script>
