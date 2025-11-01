@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Crypto Prices</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      background: #0f172a;
+      color: #e2e8f0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+    .card {
+      background: rgba(15,23,42,0.4);
+      border: 1px solid rgba(148,163,184,0.2);
+      border-radius: 1rem;
+      padding: 1.25rem 1.5rem;
+      width: min(420px, 100%);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      text-align: center;
+    }
+    .price-row {
+      display: flex;
+      justify-content: space-between;
+      margin-top: .75rem;
+      font-size: 1.05rem;
+    }
+    button {
+      background: #38bdf8;
+      border: none;
+      border-radius: .75rem;
+      padding: .6rem 1rem;
+      color: #0f172a;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 1rem;
+    }
+    button:hover {
+      filter: brightness(0.95);
+    }
+    small {
+      opacity: .6;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>My Coinbase Bot</h1>
+    <div id="prices">
+      <div class="price-row"><span>BTC-USD</span><span>...</span></div>
+      <div class="price-row"><span>ETH-USD</span><span>...</span></div>
+      <div class="price-row"><span>SOL-USD</span><span>...</span></div>
+    </div>
+    <button onclick="loadPrices()">Refresh</button>
+    <small id="status"></small>
+  </div>
+
+  <script>
+    async function loadPrices() {
+      const status = document.getElementById("status");
+      status.textContent = "loading...";
+      try {
+        const res = await fetch("https://coinbase-bot-czbc.onrender.com/prices");
+        const data = await res.json();
+        const pricesDiv = document.getElementById("prices");
+        pricesDiv.innerHTML = "";
+        Object.keys(data).forEach(symbol => {
+          const row = document.createElement("div");
+          row.className = "price-row";
+          row.innerHTML = `<span>${symbol}</span><span>$${Number(data[symbol]).toLocaleString()}</span>`;
+          pricesDiv.appendChild(row);
+        });
+        status.textContent = "updated " + new Date().toLocaleTimeString();
+      } catch (err) {
+        status.textContent = "error getting prices";
+      }
+    }
+    loadPrices();
+  </script>
+</body>
+</html>
