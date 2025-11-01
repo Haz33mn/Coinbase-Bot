@@ -2,7 +2,7 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import urllib.request
 import urllib.error
@@ -19,7 +19,6 @@ app.add_middleware(
 
 BASE_DIR = Path(__file__).resolve().parent
 
-# the coins we want to show
 COINS = [
     "BTC-USD",
     "ETH-USD",
@@ -33,7 +32,6 @@ COINS = [
     "DOGE-USD",
 ]
 
-# fallback prices if Coinbase won’t answer
 FALLBACK_PRICES = {
     "BTC-USD": 109_785.923,
     "ETH-USD": 3_828.794,
@@ -48,7 +46,7 @@ FALLBACK_PRICES = {
 }
 
 
-def get_json(url: str):
+def http_json(url: str):
     try:
         req = urllib.request.Request(
             url,
@@ -59,7 +57,7 @@ def get_json(url: str):
         )
         with urllib.request.urlopen(req, timeout=6) as resp:
             return json.loads(resp.read().decode("utf-8")), True
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError):
+    except Exception:
         return None, False
 
 
@@ -68,7 +66,7 @@ def root():
     index_file = BASE_DIR / "index.html"
     if index_file.exists():
         return FileResponse(index_file)
-    return {"status": "ok", "info": "index.html not found"}
+    return {"status": "ok"}
 
 
 @app.get("/health")
@@ -78,65 +76,76 @@ def health():
 
 @app.get("/prices")
 def prices():
-    """
-    Get current spot prices from Coinbase.
-    Public endpoint: https://api.coinbase.com/v2/prices/BTC-USD/spot
-    """
-    result = {}
-    from_live = True
-
+    out = {}
+    live = True
     for sym in COINS:
         url = f"https://api.coinbase.com/v2/prices/{sym}/spot"
-        data, ok = get_json(url)
+        data, ok = http_json(url)
         if ok and data and "data" in data:
             try:
                 price = float(data["data"]["amount"])
-            except (ValueError, KeyError):
+            except Exception:
                 price = FALLBACK_PRICES.get(sym, 100.0)
-                from_live = False
+                live = False
         else:
             price = FALLBACK_PRICES.get(sym, 100.0)
-            from_live = False
-        result[sym] = price
-
-    return JSONResponse({"prices": result, "live": from_live})
+            live = False
+        out[sym] = price
+    return JSONResponse({"prices": out, "live": live})
 
 
 @app.get("/history")
 def history(
     symbol: str = Query("BTC-USD"),
-    span: str = Query("24h"),  # 24h, 1M, 6M, 1Y
-    mode: str = Query("line"),  # line, candles
+    span: str = Query("1D"),  # 1D, 1W, 1M, 6M, 1Y
+    mode: str = Query("line"),  # line or candles
 ):
     """
-    Real Coinbase candles:
-      GET https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=3600
-    returns: [ time, low, high, open, close, volume ]
-    We'll map span -> granularity
+    We'll pull from Coinbase Exchange candles.
+    We only have these granularities: 60, 300, 900, 3600, 21600, 86400.
+    Strategy:
+      - 1D  -> gran=900 (15m)   -> about 96 points
+      - 1W  -> gran=3600 (1h)   -> about 168 points
+      - 1M  -> gran=21600 (6h)
+      - 6M  -> gran=86400 (1d)
+      - 1Y  -> gran=86400 (1d)
     """
-    # map spans to granularity
-    if span == "24h":
-        gran = 900        # 15m
+    span = span.upper()
+    now = datetime.now(timezone.utc)
+
+    if span == "1D":
+        gran = 900
+        start = now - timedelta(days=1)
+    elif span == "1W":
+        gran = 3600
+        start = now - timedelta(days=7)
     elif span == "1M":
-        gran = 21600      # 6h
+        gran = 21600
+        start = now - timedelta(days=30)
     elif span == "6M":
-        gran = 86400      # 1d
+        gran = 86400
+        start = now - timedelta(days=180)
     else:  # 1Y
-        gran = 604800     # 1w
+        gran = 86400
+        start = now - timedelta(days=365)
 
-    url = f"https://api.exchange.coinbase.com/products/{symbol}/candles?granularity={gran}"
-    data, ok = get_json(url)
+    end_iso = now.isoformat()
+    start_iso = start.isoformat()
 
-    # Coinbase returns newest first
-    if ok and isinstance(data, list) and len(data) > 0:
+    url = (
+        f"https://api.exchange.coinbase.com/products/{symbol}/candles"
+        f"?start={start_iso}&end={end_iso}&granularity={gran}"
+    )
+    data, ok = http_json(url)
+
+    if ok and isinstance(data, list) and data:
         data.reverse()  # oldest first
         if mode == "candles":
             candles = []
             for c in data:
-                # c: [ time, low, high, open, close, volume ]
                 candles.append(
                     {
-                        "t": datetime.utcfromtimestamp(c[0]).isoformat() + "Z",
+                        "t": datetime.fromtimestamp(c[0], tz=timezone.utc).isoformat(),
                         "o": c[3],
                         "h": c[2],
                         "l": c[1],
@@ -151,12 +160,12 @@ def history(
                 "candles": candles,
             }
         else:
-            points = []
+            pts = []
             for c in data:
-                points.append(
+                pts.append(
                     {
-                        "t": datetime.utcfromtimestamp(c[0]).isoformat() + "Z",
-                        "p": c[4],  # close
+                        "t": datetime.fromtimestamp(c[0], tz=timezone.utc).isoformat(),
+                        "p": c[4],
                     }
                 )
             return {
@@ -164,29 +173,27 @@ def history(
                 "span": span,
                 "mode": mode,
                 "source": "live",
-                "points": points,
+                "points": pts,
             }
 
-    # ---------- FALLBACK (what you were seeing) ----------
-    # if we’re here, Coinbase said no – we make a wave
-    now = datetime.utcnow()
-    points = []
-    for i in range(60):
-        t = now - timedelta(minutes=(60 - i) * 10)
-        base = FALLBACK_PRICES.get(symbol, 100.0)
-        wobble = base * 0.012 * __import__("math").sin(i / 6)
-        points.append({"t": t.isoformat() + "Z", "p": round(base + wobble, 4)})
+    # fallback wave
+    base = FALLBACK_PRICES.get(symbol, 100.0)
+    pts = []
+    for i in range(80):
+        t = (now - timedelta(minutes=(80 - i) * 15)).isoformat()
+        wobble = base * 0.01 * __import__("math").sin(i / 4)
+        pts.append({"t": t, "p": round(base + wobble, 4)})
 
     if mode == "candles":
-        candles = []
-        for p in points:
+        cnds = []
+        for p in pts:
             price = p["p"]
-            candles.append(
+            cnds.append(
                 {
                     "t": p["t"],
                     "o": price * 0.999,
-                    "h": price * 1.004,
-                    "l": price * 0.996,
+                    "h": price * 1.003,
+                    "l": price * 0.997,
                     "c": price * 1.001,
                 }
             )
@@ -195,7 +202,7 @@ def history(
             "span": span,
             "mode": mode,
             "source": "mock",
-            "candles": candles,
+            "candles": cnds,
         }
 
     return {
@@ -203,7 +210,7 @@ def history(
         "span": span,
         "mode": mode,
         "source": "mock",
-        "points": points,
+        "points": pts,
     }
 
 
