@@ -5,7 +5,6 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 import json
 import urllib.request
-import urllib.error
 
 app = FastAPI()
 
@@ -97,37 +96,28 @@ def prices():
 @app.get("/history")
 def history(
     symbol: str = Query("BTC-USD"),
-    span: str = Query("1D"),  # 1D, 1W, 1M, 6M, 1Y
-    mode: str = Query("line"),  # line or candles
+    span: str = Query("1D"),
+    mode: str = Query("line"),
 ):
-    """
-    We'll pull from Coinbase Exchange candles.
-    We only have these granularities: 60, 300, 900, 3600, 21600, 86400.
-    Strategy:
-      - 1D  -> gran=900 (15m)   -> about 96 points
-      - 1W  -> gran=3600 (1h)   -> about 168 points
-      - 1M  -> gran=21600 (6h)
-      - 6M  -> gran=86400 (1d)
-      - 1Y  -> gran=86400 (1d)
-    """
     span = span.upper()
     now = datetime.now(timezone.utc)
 
+    # pick granularity + start
     if span == "1D":
-        gran = 900
+        gran = 900            # 15 min
         start = now - timedelta(days=1)
     elif span == "1W":
-        gran = 3600
+        gran = 3600           # 1h
         start = now - timedelta(days=7)
     elif span == "1M":
-        gran = 21600
+        gran = 21600          # 6h
         start = now - timedelta(days=30)
     elif span == "6M":
-        gran = 86400
+        gran = 86400          # 1d
         start = now - timedelta(days=180)
-    else:  # 1Y
-        gran = 86400
-        start = now - timedelta(days=365)
+    else:  # 1Y -> cap to 300 days so Coinbase doesn't choke
+        gran = 86400          # 1d
+        start = now - timedelta(days=300)
 
     end_iso = now.isoformat()
     start_iso = start.isoformat()
@@ -160,9 +150,9 @@ def history(
                 "candles": candles,
             }
         else:
-            pts = []
+            points = []
             for c in data:
-                pts.append(
+                points.append(
                     {
                         "t": datetime.fromtimestamp(c[0], tz=timezone.utc).isoformat(),
                         "p": c[4],
@@ -173,7 +163,7 @@ def history(
                 "span": span,
                 "mode": mode,
                 "source": "live",
-                "points": pts,
+                "points": points,
             }
 
     # fallback wave
