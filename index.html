@@ -12,9 +12,9 @@
         --panel3: #121212;
         --text: #fff;
         --muted: rgba(255, 255, 255, 0.4);
-        --accent: #fff;
-        --danger: #ff4d6d;
-        --success: #5af2b1;
+        --accent: #ffffff;
+        --buy: #43f89f;
+        --sell: #ff6f91;
       }
       * {
         box-sizing: border-box;
@@ -31,37 +31,24 @@
       }
       .app-shell {
         width: min(1100px, 100%);
-        margin: 28px auto;
+        margin: 26px 10px 26px;
         background: var(--panel);
-        border: 1px solid rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.02);
         border-radius: 20px;
         overflow: hidden;
       }
       .header {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        padding: 16px 22px 10px;
-      }
-      .title-wrap {
-        display: flex;
-        align-items: center;
+        justify-content: flex-start;
         gap: 10px;
+        padding: 14px 20px 6px;
       }
       .online-dot {
         width: 7px;
         height: 7px;
         border-radius: 999px;
-        background: #04e000;
-      }
-      .settings-btn {
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        color: #fff;
-        border-radius: 999px;
-        padding: 6px 16px;
-        font-size: 0.7rem;
-        cursor: not-allowed;
+        background: #00f36b;
       }
       .body-grid {
         display: grid;
@@ -92,7 +79,7 @@
         display: flex;
         flex-direction: column;
         gap: 7px;
-        max-height: 420px;
+        max-height: 430px;
         overflow-y: auto;
       }
       .coin-item {
@@ -101,41 +88,41 @@
         justify-content: space-between;
         gap: 6px;
         background: rgba(255, 255, 255, 0.01);
-        border: 1px solid rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.01);
         border-radius: 12px;
         padding: 7px 9px;
         cursor: pointer;
       }
       .coin-item.active {
-        background: rgba(255, 255, 255, 0.14);
-        border: 1px solid rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.16);
       }
       .coin-name {
         font-size: 0.7rem;
       }
       .coin-price {
         font-size: 0.65rem;
-        color: rgba(255, 255, 255, 0.7);
+        color: rgba(255, 255, 255, 0.6);
       }
       .badge {
         font-size: 0.6rem;
-        padding: 2px 8px 2px;
+        padding: 2px 7px 2px;
         border-radius: 999px;
       }
       .badge.hold {
-        background: rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.1);
       }
       .badge.buy {
-        background: rgba(90, 242, 177, 0.15);
-        color: #5af2b1;
+        background: rgba(67, 248, 159, 0.14);
+        color: var(--buy);
       }
       .badge.sell {
-        background: rgba(255, 77, 109, 0.18);
-        color: #ff7f99;
+        background: rgba(255, 111, 145, 0.14);
+        color: var(--sell);
       }
       .right-panel {
         background: var(--panel3);
-        padding: 14px 18px 20px;
+        padding: 14px 16px 14px;
       }
       .right-top {
         display: flex;
@@ -163,17 +150,17 @@
         color: #fff;
       }
       .chart-shell {
-        background: rgba(0, 0, 0, 0.12);
+        background: #0d0d0d;
         border: 1px solid rgba(255, 255, 255, 0.01);
-        border-radius: 14px;
+        border-radius: 12px;
         overflow: hidden;
         height: 300px;
         position: relative;
       }
       canvas {
-        width: 100% !important;
-        height: 100% !important;
         display: block;
+        width: 100%;
+        height: 100%;
       }
       .chart-status {
         position: absolute;
@@ -184,15 +171,15 @@
         border-radius: 6px;
       }
       .chart-status.mock {
-        background: rgba(255, 77, 109, 0.12);
-        color: #ff7f99;
+        background: rgba(255, 111, 145, 0.2);
+        color: #ff6f91;
       }
       .chart-status.live {
-        background: rgba(90, 242, 177, 0.12);
-        color: #5af2b1;
+        background: rgba(67, 248, 159, 0.15);
+        color: #43f89f;
       }
       .footer-bar {
-        margin: 14px 14px 16px;
+        margin: 12px 14px 14px;
         height: 26px;
         border-radius: 999px;
         background: #fff;
@@ -212,14 +199,11 @@
   <body>
     <div class="app-shell">
       <div class="header">
-        <div class="title-wrap">
-          <h2 style="margin: 0; font-size: 1.1rem">My Coinbase Bot</h2>
-          <span class="online-dot"></span>
-          <span style="font-size: 0.6rem; color: var(--muted)"
-            >connected to bot</span
-          >
-        </div>
-        <button class="settings-btn">⚙︎ Settings</button>
+        <h2 style="margin: 0; font-size: 1.05rem">My Coinbase Bot</h2>
+        <span class="online-dot"></span>
+        <span style="font-size: 0.6rem; color: var(--muted)"
+          >connected to bot</span
+        >
       </div>
 
       <div class="body-grid">
@@ -242,9 +226,10 @@
               </div>
             </div>
             <div class="tabs">
-              <button class="tab-btn active" onclick="setSpan('24h', this)">
-                24h
+              <button class="tab-btn active" onclick="setSpan('1D', this)">
+                1D
               </button>
+              <button class="tab-btn" onclick="setSpan('1W', this)">1W</button>
               <button class="tab-btn" onclick="setSpan('1M', this)">1M</button>
               <button class="tab-btn" onclick="setSpan('6M', this)">6M</button>
               <button class="tab-btn" onclick="setSpan('1Y', this)">1Y</button>
@@ -259,9 +244,9 @@
             </div>
           </div>
           <div class="chart-shell">
-            <canvas id="chartCanvas"></canvas>
-            <div id="chartStatus" class="chart-status mock" style="display:none">
-              mock data
+            <canvas id="chartCanvas" width="600" height="300"></canvas>
+            <div id="chartStatus" class="chart-status" style="display: none">
+              …
             </div>
           </div>
           <div
@@ -281,29 +266,44 @@
       let prices = {};
       let coins = [];
       let selected = null;
-      let currentSpan = "24h";
+      let currentSpan = "1D";
       let currentMode = "line";
       let lastPrices = {};
 
       const canvas = document.getElementById("chartCanvas");
       const ctx = canvas.getContext("2d");
 
+      function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      resizeCanvas();
+      window.addEventListener("resize", () => {
+        resizeCanvas();
+        if (selected) loadHistory(selected);
+      });
+
       function drawLine(points) {
-        const w = canvas.width;
-        const h = canvas.height;
+        const rect = canvas.getBoundingClientRect();
+        const w = rect.width;
+        const h = rect.height;
         ctx.clearRect(0, 0, w, h);
         if (!points || !points.length) return;
         const vals = points.map((p) => p.p);
         const min = Math.min(...vals);
         const max = Math.max(...vals);
-        const pad = 10;
+        const padX = 10;
+        const padY = 12;
         ctx.lineWidth = 2;
         ctx.strokeStyle = "#33ffcc";
         ctx.beginPath();
         points.forEach((p, i) => {
-          const x = (i / (points.length - 1 || 1)) * (w - pad * 2) + pad;
+          const x = (i / (points.length - 1 || 1)) * (w - padX * 2) + padX;
           const y =
-            h - ((p.p - min) / (max - min || 1)) * (h - pad * 2) - pad;
+            h - ((p.p - min) / (max - min || 1)) * (h - padY * 2) - padY;
           if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         });
@@ -311,35 +311,37 @@
       }
 
       function drawCandles(candles) {
-        const w = canvas.width;
-        const h = canvas.height;
+        const rect = canvas.getBoundingClientRect();
+        const w = rect.width;
+        const h = rect.height;
         ctx.clearRect(0, 0, w, h);
         if (!candles || !candles.length) return;
         const highs = candles.map((c) => c.h);
         const lows = candles.map((c) => c.l);
         const min = Math.min(...lows);
         const max = Math.max(...highs);
-        const pad = 10;
-        const candleW = Math.max(4, (w - pad * 2) / candles.length - 2);
+        const padX = 10;
+        const padY = 12;
+        const candleW = Math.max(5, (w - padX * 2) / candles.length - 1);
 
         candles.forEach((c, i) => {
-          const x = (i / (candles.length - 1 || 1)) * (w - pad * 2) + pad;
+          const x = (i / (candles.length - 1 || 1)) * (w - padX * 2) + padX;
           const yH =
-            h - ((c.h - min) / (max - min || 1)) * (h - pad * 2) - pad;
+            h - ((c.h - min) / (max - min || 1)) * (h - padY * 2) - padY;
           const yL =
-            h - ((c.l - min) / (max - min || 1)) * (h - pad * 2) - pad;
+            h - ((c.l - min) / (max - min || 1)) * (h - padY * 2) - padY;
           const yO =
-            h - ((c.o - min) / (max - min || 1)) * (h - pad * 2) - pad;
+            h - ((c.o - min) / (max - min || 1)) * (h - padY * 2) - padY;
           const yC =
-            h - ((c.c - min) / (max - min || 1)) * (h - pad * 2) - pad;
+            h - ((c.c - min) / (max - min || 1)) * (h - padY * 2) - padY;
           const up = c.c >= c.o;
-          ctx.strokeStyle = up ? "#33ffcc" : "#ff6c6c";
+          ctx.strokeStyle = up ? "#33ffcc" : "#ff6f91";
           ctx.beginPath();
           ctx.moveTo(x, yH);
           ctx.lineTo(x, yL);
           ctx.stroke();
 
-          ctx.fillStyle = up ? "#33ffcc" : "#ff6c6c";
+          ctx.fillStyle = up ? "#33ffcc" : "#ff6f91";
           const rectY = Math.min(yO, yC);
           const rectH = Math.max(4, Math.abs(yO - yC));
           ctx.fillRect(x - candleW / 2, rectY, candleW, rectH);
@@ -369,17 +371,14 @@
           const res = await fetch(`${API_BASE}/prices`);
           const json = await res.json();
           prices = json.prices || {};
-          const fromLive = json.live;
           coins = Object.keys(prices)
             .map((s) => ({ symbol: s, price: prices[s] }))
             .sort((a, b) => b.price - a.price)
             .slice(0, 10);
           renderCoinList();
-          if (!selected && coins.length) {
-            selectCoin(coins[0].symbol);
-          }
-        } catch (err) {
-          console.error(err);
+          if (!selected && coins.length) selectCoin(coins[0].symbol);
+        } catch (e) {
+          console.error(e);
         }
       }
 
@@ -399,10 +398,10 @@
             const left = document.createElement("div");
             left.innerHTML = `<div class="coin-name">${c.symbol}</div><div class="coin-price">$${c.price.toLocaleString()}</div>`;
 
-            const signal = getSignal(c.symbol, c.price);
+            const sig = getSignal(c.symbol, c.price);
             const badge = document.createElement("span");
-            badge.className = "badge " + signal.type;
-            badge.innerText = `${signal.label} • ${signal.conf}%`;
+            badge.className = "badge " + sig.type;
+            badge.innerText = `${sig.label} • ${sig.conf}%`;
 
             el.appendChild(left);
             el.appendChild(badge);
@@ -428,7 +427,7 @@
         status.style.display = "none";
         try {
           const res = await fetch(
-            `${API_BASE}/history?symbol=${encodeURIComponent(
+            `/history?symbol=${encodeURIComponent(
               symbol
             )}&span=${encodeURIComponent(
               currentSpan
@@ -440,18 +439,17 @@
           } else {
             drawLine(data.points || []);
           }
-          if (data.source === "mock") {
-            status.textContent = "mock data (fallback)";
-            status.className = "chart-status mock";
-            status.style.display = "block";
-          } else {
+          if (data.source === "live") {
             status.textContent = "live from Coinbase";
             status.className = "chart-status live";
-            status.style.display = "block";
+          } else {
+            status.textContent = "fallback data";
+            status.className = "chart-status mock";
           }
-        } catch (err) {
-          console.error(err);
-          status.textContent = "error, showing nothing";
+          status.style.display = "block";
+        } catch (e) {
+          console.error(e);
+          status.textContent = "error";
           status.className = "chart-status mock";
           status.style.display = "block";
         }
@@ -459,15 +457,20 @@
           "updated " + new Date().toLocaleTimeString();
       }
 
-      function getSignal(symbol, priceNow) {
+      function getSignal(symbol, currentPrice) {
         const prev = lastPrices[symbol];
-        lastPrices[symbol] = priceNow;
-        if (!prev) return { type: "hold", label: "HOLD", conf: 50 };
-        const diff = ((priceNow - prev) / prev) * 100;
-        const buyTh = 0.7;
-        const sellTh = -0.7;
-        if (diff >= buyTh) return { type: "buy", label: "BUY", conf: 82 };
-        if (diff <= sellTh) return { type: "sell", label: "SELL", conf: 80 };
+        lastPrices[symbol] = currentPrice;
+        if (!prev)
+          return {
+            type: "hold",
+            label: "HOLD",
+            conf: 50,
+          };
+        const diffPct = ((currentPrice - prev) / prev) * 100;
+        const buyTh = 1.0; // 1% move
+        const sellTh = -1.0;
+        if (diffPct >= buyTh) return { type: "buy", label: "BUY", conf: 82 };
+        if (diffPct <= sellTh) return { type: "sell", label: "SELL", conf: 80 };
         return { type: "hold", label: "HOLD", conf: 50 };
       }
 
@@ -476,7 +479,6 @@
         if (selected) await loadHistory(selected);
       }
 
-      // start
       refreshAll();
       setInterval(refreshAll, 15000);
     </script>
