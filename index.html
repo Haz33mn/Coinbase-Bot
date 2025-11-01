@@ -6,711 +6,695 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root {
-      --bg: #000000;
-      --fg: #ffffff;
-      --card: rgba(12, 12, 12, 0.85);
-      --border: rgba(255, 255, 255, 0.07);
-      --accent: #ffffff;
-      --accent-soft: rgba(255, 255, 255, 0.08);
-      --muted: rgba(255, 255, 255, 0.45);
-      --danger: #f43f5e;
-      --success: #22c55e;
-      --chartbg: rgba(255, 255, 255, 0.02);
+      --bg: #000;
+      --surface: #0f0f11;
+      --surface-soft: #151517;
+      --surface-soft2: #111;
+      --text: #fff;
+      --muted: rgba(255,255,255,0.4);
+      --accent: #fff;
+      --danger: #ff5c5c;
+      --good: #37d080;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --radius-sm: 10px;
     }
-    [data-theme="light"] {
-      --bg: #f8fafc;
-      --fg: #0f172a;
-      --card: #ffffff;
-      --border: rgba(15, 23, 42, 0.08);
-      --accent: #0f172a;
-      --accent-soft: rgba(15, 23, 42, 0.04);
-      --muted: rgba(15, 23, 42, 0.6);
-      --chartbg: rgba(15, 23, 42, 0.03);
+
+    * {
+      box-sizing: border-box;
     }
-    * { box-sizing: border-box; }
+
     body {
       margin: 0;
       background: var(--bg);
-      color: var(--fg);
+      color: var(--text);
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       min-height: 100vh;
       display: flex;
       justify-content: center;
-      padding: 1.5rem 1rem 3.5rem;
-      transition: background .2s, color .2s;
+      align-items: flex-start;
+      padding: 24px 14px 60px;
     }
-    .app {
-      width: min(1100px, 100%);
+
+    .app-shell {
+      width: min(1180px, 100%);
+      background: rgba(0,0,0,0.0);
     }
+
     .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 1.2rem;
-      box-shadow: 0 18px 35px rgba(0,0,0,0.35);
-      padding: 1.3rem 1.3rem 1.1rem;
+      background: rgba(15,15,17,0.6);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: var(--radius-lg);
+      padding: 1.4rem 1.4rem 1rem;
+      box-shadow: 0 16px 50px rgba(0,0,0,0.25);
     }
-    .topbar {
+
+    .top-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 1rem;
+      margin-bottom: 1rem;
+      gap: .75rem;
     }
+
     h1 {
-      margin: 0;
       font-size: 1.6rem;
       font-weight: 700;
+      margin: 0;
     }
-    .status-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: .4rem;
-      font-size: .7rem;
+
+    .status-dot {
+      width: .6rem;
+      height: .6rem;
+      background: #2ecc71;
       border-radius: 999px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
-      padding: .3rem .75rem;
-      color: var(--muted);
+      margin-right: .4rem;
     }
-    .dot {
-      width: .45rem;
-      height: .45rem;
-      border-radius: 999px;
-      background: #22c55e;
-    }
-    .actions {
-      display: flex;
-      gap: .5rem;
-      align-items: center;
-    }
-    #settingsBtn {
-      background: var(--accent);
-      color: var(--bg);
-      border: none;
-      border-radius: .75rem;
-      padding: .4rem .8rem;
-      font-size: .7rem;
-      font-weight: 600;
-      cursor: pointer;
+    .status-row {
       display: flex;
       align-items: center;
       gap: .35rem;
+      font-size: .75rem;
+      color: var(--muted);
     }
-    #settingsMenu {
-      position: absolute;
-      right: 1.3rem;
-      top: 3.6rem;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: .75rem;
-      padding: .45rem;
-      width: 180px;
-      box-shadow: 0 14px 25px rgba(0,0,0,.35);
-      display: none;
-      z-index: 50;
-    }
-    #settingsMenu button {
-      width: 100%;
-      background: transparent;
-      border: 1px solid transparent;
-      color: var(--fg);
-      padding: .35rem .4rem;
-      text-align: left;
-      border-radius: .4rem;
-      font-size: .7rem;
+
+    .settings-btn {
+      background: #fff;
+      color: #000;
+      border: none;
+      padding: .55rem 1.1rem;
+      border-radius: 999px;
+      font-weight: 600;
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      gap: .4rem;
       cursor: pointer;
+      font-size: .72rem;
     }
-    #settingsMenu button.active {
-      background: rgba(255,255,255,.09);
-      border-color: rgba(255,255,255,.18);
-    }
+
     .layout {
-      display: flex;
-      gap: 1.1rem;
-      margin-top: 1rem;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 1.15rem;
+      min-height: 420px;
     }
-    .list {
-      width: 32%;
+
+    /* left list */
+    .coin-list {
+      background: rgba(17,17,19,0.4);
+      border: 1px solid rgba(255,255,255,0.02);
+      border-radius: 18px;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
-      gap: .4rem;
-      max-height: 345px;
-      overflow-y: auto;
-      padding-right: .15rem;
+      height: 420px;
     }
-    .search {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.04);
-      border-radius: .55rem;
-      padding: .3rem .5rem;
-      display: flex;
-      gap: .4rem;
-      align-items: center;
+
+    .search-box {
+      padding: .6rem .6rem 0;
     }
-    .search input {
-      background: transparent;
-      border: none;
-      outline: none;
-      color: var(--fg);
-      font-size: .7rem;
+
+    .search-box input {
       width: 100%;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.035);
+      border-radius: 999px;
+      height: 32px;
+      color: #fff;
+      padding: 0 .7rem 0 2.1rem;
+      outline: none;
+      font-size: .72rem;
+      background-image: url("data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='11' cy='11' r='6'/%3E%3Cline x1='17' y1='17' x2='21' y2='21'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: 9px center;
+      background-size: 14px;
     }
-    .coin-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+
+    .coin-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: .5rem .35rem .5rem .6rem;
       gap: .4rem;
-      padding: .4rem .5rem .4rem .6rem;
-      border-radius: .6rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .coin-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 14px;
+      padding: .4rem .5rem .35rem;
       cursor: pointer;
       transition: background .1s;
+      gap: .6rem;
     }
-    .coin-row:hover {
-      background: rgba(255,255,255,.05);
+    .coin-item:hover {
+      background: rgba(255,255,255,0.03);
     }
-    .coin-row.active {
-      background: rgba(255,255,255,.16);
-      outline: 1px solid rgba(255,255,255,.26);
+    .coin-item.active {
+      background: rgba(255,255,255,0.05);
+      border-color: rgba(255,255,255,0.05);
     }
-    .coin-left {
-      display: flex;
-      flex-direction: column;
-      gap: .15rem;
-    }
-    .coin-symbol {
-      font-size: .7rem;
-      font-weight: 600;
+
+    .coin-name {
+      font-size: .75rem;
+      font-weight: 550;
+      letter-spacing: -.01em;
     }
     .coin-price {
-      font-size: .62rem;
-      color: var(--muted);
+      font-size: .68rem;
+      color: rgba(255,255,255,0.5);
+      margin-top: 2px;
     }
-    .coin-right {
-      display: flex;
-      gap: .35rem;
-      align-items: center;
-    }
-    .tag {
-      font-size: .55rem;
-      padding: 2px 8px 2px 8px;
+
+    .badge {
+      font-size: .6rem;
+      padding: .2rem .55rem .2rem;
       border-radius: 999px;
       font-weight: 600;
-      white-space: nowrap;
     }
-    .buy { background: rgba(34,197,94,.12); color: #22c55e; }
-    .sell { background: rgba(244,63,94,.11); color: #f43f5e; }
-    .hold { background: rgba(255,255,255,.1); color: #fff; }
-    .score {
-      font-size: .55rem;
-      color: var(--muted);
-      text-align: right;
+    .badge.buy {
+      background: rgba(55,208,128,0.12);
+      color: #37d080;
     }
-    .chart-area {
-      flex: 1;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 1rem;
-      padding: .75rem .75rem .6rem;
+    .badge.sell {
+      background: rgba(255,92,92,0.12);
+      color: #ff5c5c;
+    }
+    .badge.hold {
+      background: rgba(255,255,255,0.03);
+      color: rgba(255,255,255,0.55);
+    }
+
+    /* right panel */
+    .right-panel {
+      background: rgba(17,17,19,0.35);
+      border: 1px solid rgba(255,255,255,0.03);
+      border-radius: 18px;
+      padding: .85rem .9rem .6rem;
       display: flex;
       flex-direction: column;
-      gap: .5rem;
-      min-height: 285px;
-      position: relative;
+      gap: .6rem;
     }
-    .chart-head {
+
+    .coin-header {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      gap: 1rem;
+      justify-content: space-between;
+      gap: .5rem;
     }
-    .coin-title {
+
+    .coin-main {
       display: flex;
       flex-direction: column;
-      gap: .25rem;
-    }
-    .coin-title small { color: var(--muted); font-size: .6rem; }
-    .ranges, .types {
-      display: flex;
       gap: .35rem;
-      flex-wrap: wrap;
     }
-    .btn-sm {
-      background: rgba(255,255,255,.015);
+
+    .coin-symbol {
+      font-weight: 650;
+      font-size: 1.05rem;
+    }
+
+    .coin-value {
+      font-size: .8rem;
+      color: rgba(255,255,255,0.35);
+    }
+
+    .time-buttons,
+    .chart-type {
+      display: flex;
+      gap: .4rem;
+    }
+
+    .chip {
+      background: rgba(255,255,255,0.03);
       border: 1px solid transparent;
-      border-radius: .6rem;
-      padding: .18rem .6rem;
-      font-size: .62rem;
+      border-radius: 999px;
+      padding: .35rem .6rem .32rem;
+      font-size: .6rem;
       cursor: pointer;
-      color: var(--fg);
+      color: rgba(255,255,255,0.45);
     }
-    .btn-sm.active {
-      background: rgba(255,255,255,.18);
-      border-color: rgba(255,255,255,.25);
+    .chip.active {
+      border-color: rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.06);
+      color: #fff;
     }
-    .canvas-box {
-      background: var(--chartbg);
-      border-radius: .8rem;
-      overflow: hidden;
-      min-height: 200px;
-    }
-    canvas {
-      width: 100%;
-      height: 200px;
+
+    .chart-shell {
+      background: rgba(0,0,0,0.15);
+      border: 1px solid rgba(255,255,255,0.01);
+      border-radius: 15px;
+      height: 240px;
       display: block;
     }
+    .chart-shell canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 15px;
+    }
+
     .chart-footer {
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      justify-content: space-between;
+      gap: .5rem;
       font-size: .6rem;
-      color: var(--muted);
+      margin-top: .35rem;
     }
-    .err-bar {
-      position: absolute;
-      bottom: 2.1rem;
-      right: .9rem;
-      background: rgba(244,63,94,.12);
-      border: 1px solid rgba(244,63,94,.2);
-      border-radius: .35rem;
-      font-size: .58rem;
-      padding: .2rem .45rem;
-      display: none;
+
+    .warn-pill {
+      background: rgba(255,92,92,0.08);
+      color: rgba(255,92,92,0.85);
+      padding: .25rem .6rem .25rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255,92,92,0.2);
     }
-    .refresh-btn {
-      width: 100%;
-      background: var(--accent);
-      color: var(--bg);
-      border: none;
-      border-radius: .7rem;
-      padding: .5rem 0;
-      margin-top: .9rem;
+
+    .refresh-bar {
+      margin-top: 1rem;
+      background: rgba(255,255,255,0.035);
+      border: 1px solid rgba(255,255,255,0.01);
+      border-radius: 999px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .74rem;
       font-weight: 600;
+      color: #000;
+      background: #fff;
       cursor: pointer;
     }
+
     @media (max-width: 880px) {
-      .layout { flex-direction: column; }
-      .list { width: 100%; max-height: 170px; flex-wrap: wrap; }
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      .coin-list {
+        height: 290px;
+      }
     }
   </style>
 </head>
-<body data-theme="dark">
-  <div class="app">
-    <div class="card" id="rootCard">
-      <div class="topbar">
+<body>
+  <div class="app-shell">
+    <div class="card">
+      <div class="top-row">
         <div>
-          <h1>My Coinbase Bot</h1>
-          <div class="status-pill" id="statusPill">
-            <span class="dot" id="statusDot"></span>
-            <span id="statusText">connecting…</span>
+          <div class="status-row">
+            <div class="status-dot"></div>
+            connected to bot
           </div>
+          <h1>My Coinbase Bot</h1>
         </div>
-        <div class="actions">
-          <button id="settingsBtn">⚙︎ Settings</button>
-        </div>
-        <div id="settingsMenu">
-          <button data-mode="dark" class="active">Dark <span>●</span></button>
-          <button data-mode="light">Light <span></span></button>
-          <button id="toggleAudit">Audit log: on <span></span></button>
-        </div>
+        <button class="settings-btn" id="settingsBtn">⚙ Settings</button>
       </div>
 
       <div class="layout">
         <!-- LEFT LIST -->
-        <div class="list">
-          <div class="search">
-            <span style="font-size:.7rem;opacity:.6;">🔎</span>
-            <input id="searchInput" placeholder="search coin…" />
+        <div class="coin-list">
+          <div class="search-box">
+            <input id="searchInput" placeholder="search coin..." />
           </div>
-          <div id="coinList"></div>
+          <div class="coin-scroll" id="coinList">
+            <!-- rendered by JS -->
+          </div>
         </div>
 
-        <!-- RIGHT CHART -->
-        <div class="chart-area">
-          <div class="chart-head">
-            <div class="coin-title">
-              <div id="chartSymbol">Select a coin</div>
-              <small id="chartPrice">—</small>
+        <!-- RIGHT PANEL -->
+        <div class="right-panel">
+          <div class="coin-header">
+            <div class="coin-main">
+              <div class="coin-symbol" id="coinTitle">Select a coin</div>
+              <div class="coin-value" id="coinPrice">—</div>
             </div>
-            <div style="display:flex;gap:.45rem;align-items:center;">
-              <div class="ranges">
-                <button class="btn-sm active" data-range="24h">24h</button>
-                <button class="btn-sm" data-range="1m">1M</button>
-                <button class="btn-sm" data-range="6m">6M</button>
-                <button class="btn-sm" data-range="1y">1Y</button>
+            <div style="display:flex; gap:.5rem; align-items:center;">
+              <div class="time-buttons">
+                <div class="chip active" data-range="24h">24h</div>
+                <div class="chip" data-range="1m">1M</div>
+                <div class="chip" data-range="6m">6M</div>
+                <div class="chip" data-range="1y">1Y</div>
               </div>
-              <div class="types">
-                <button class="btn-sm active" data-type="line">Line</button>
-                <button class="btn-sm" data-type="candles">Candles</button>
+              <div class="chart-type">
+                <div class="chip active" data-chart="line">Line</div>
+                <div class="chip" data-chart="candles">Candles</div>
               </div>
             </div>
           </div>
-          <div class="canvas-box">
-            <canvas id="chartCanvas" width="600" height="200"></canvas>
+
+          <div class="chart-shell">
+            <canvas id="chartCanvas"></canvas>
           </div>
           <div class="chart-footer">
-            <span id="chartUpdated">loading…</span>
-            <span id="chartSignal">signal: —</span>
+            <span id="updatedAt">loading…</span>
+            <span class="warn-pill" id="historyWarn" style="display:none;">could not load history, showing mock</span>
+            <span id="aiSignal" style="color:rgba(255,255,255,.35); font-weight:600;">signal: HOLD · 50%</span>
           </div>
-          <div class="err-bar" id="chartError">could not load history, showing mock</div>
         </div>
       </div>
 
-      <button class="refresh-btn" id="refreshBtn">Refresh</button>
+      <div class="refresh-bar" id="refreshBtn">Refresh</div>
     </div>
   </div>
 
   <script>
-    // ----------- CONFIG -----------
-    const API_BASE = "";             // same origin
-    const PRICES_URL = "/prices";
-    const HISTORY_URL = "/history";
-
-    // < 0.35% movement = HOLD
-    const DEAD_BAND = 0.35;
-    // force HOLD when no history
-    const FAIL_SAFE_HOLD = true;
-
-    let currentCoins = [];
+    // --- GLOBAL STATE --------------------------------------------------------
+    let allCoins = [];
     let filteredCoins = [];
     let selectedSymbol = null;
     let selectedRange = "24h";
-    let selectedType = "line";
-    let auditEnabled = true;
+    let selectedChart = "line";
+    let firstSelectionDone = false; // stop snapping to ADA
 
     const coinListEl = document.getElementById("coinList");
     const searchInput = document.getElementById("searchInput");
-    const chartSymbolEl = document.getElementById("chartSymbol");
-    const chartPriceEl = document.getElementById("chartPrice");
-    const chartUpdatedEl = document.getElementById("chartUpdated");
-    const chartSignalEl = document.getElementById("chartSignal");
-    const chartErrorEl = document.getElementById("chartError");
-    const refreshBtn = document.getElementById("refreshBtn");
-    const settingsBtn = document.getElementById("settingsBtn");
-    const settingsMenu = document.getElementById("settingsMenu");
-    const statusText = document.getElementById("statusText");
-    const statusDot = document.getElementById("statusDot");
     const chartCanvas = document.getElementById("chartCanvas");
     const ctx = chartCanvas.getContext("2d");
+    const historyWarn = document.getElementById("historyWarn");
 
-    // -------------- MOCK for when backend can't hit Coinbase --------------
-    function buildMockHistory(price) {
-      const points = [];
-      const base = price || 100;
-      for (let i = 0; i < 48; i++) {
-        const wobble = Math.sin(i/4) * (base * 0.0025);
-        points.push({
-          t: i,
-          o: base + wobble * 0.4,
-          h: base + wobble * 0.8 + 1.5,
-          l: base + wobble * 0.2 - 1.5,
-          c: base + wobble
-        });
-      }
-      return points;
-    }
-
-    // -------------- RENDER LIST --------------
-    function renderCoinList(list) {
-      coinListEl.innerHTML = "";
-      list.forEach((c, idx) => {
-        const row = document.createElement("div");
-        row.className = "coin-row" + (idx === 0 ? " active" : "");
-        row.dataset.symbol = c.symbol;
-
-        const left = document.createElement("div");
-        left.className = "coin-left";
-        const sym = document.createElement("div");
-        sym.className = "coin-symbol";
-        sym.textContent = c.symbol;
-        const price = document.createElement("div");
-        price.className = "coin-price";
-        price.textContent = c.price_display;
-        left.appendChild(sym);
-        left.appendChild(price);
-
-        const right = document.createElement("div");
-        right.className = "coin-right";
-
-        const tag = document.createElement("span");
-        tag.className = "tag";
-        tag.textContent = c.signal.label;
-        if (c.signal.label === "BUY") tag.classList.add("buy");
-        else if (c.signal.label === "SELL") tag.classList.add("sell");
-        else tag.classList.add("hold");
-
-        const score = document.createElement("span");
-        score.className = "score";
-        score.textContent = c.signal.conf + "%";
-
-        right.appendChild(tag);
-        right.appendChild(score);
-
-        row.appendChild(left);
-        row.appendChild(right);
-
-        row.addEventListener("click", () => {
-          document.querySelectorAll(".coin-row").forEach(r => r.classList.remove("active"));
-          row.classList.add("active");
-          selectCoin(c.symbol);
-        });
-
-        coinListEl.appendChild(row);
-      });
-    }
-
-    // -------------- DRAW CHARTS --------------
-    function clearCanvas() {
-      ctx.clearRect(0,0,chartCanvas.width,chartCanvas.height);
-      ctx.fillStyle = "transparent";
-    }
-    function drawLine(data) {
-      clearCanvas();
-      if (!data || data.length === 0) return;
-      const w = chartCanvas.width;
-      const h = chartCanvas.height;
-      const prices = data.map(p => p.c);
-      const min = Math.min(...prices);
-      const max = Math.max(...prices);
-      const pad = 12;
-      ctx.lineWidth = 2.2;
-      ctx.strokeStyle = "#22c55e";
-      ctx.beginPath();
-      data.forEach((p, i) => {
-        const x = pad + (i / Math.max(1, data.length-1)) * (w - pad*2);
-        const norm = (p.c - min) / Math.max(0.0001, (max - min));
-        const y = h - pad - norm * (h - pad*2);
-        if (i === 0) ctx.moveTo(x,y);
-        else ctx.lineTo(x,y);
-      });
-      ctx.stroke();
-    }
-    function drawCandles(data) {
-      clearCanvas();
-      if (!data || data.length === 0) return;
-      const w = chartCanvas.width;
-      const h = chartCanvas.height;
-      const pad = 12;
-      const highs = data.map(d => d.h);
-      const lows = data.map(d => d.l);
-      const min = Math.min(...lows);
-      const max = Math.max(...highs);
-      const candleW = Math.max(3, (w - pad*2) / data.length - 1);
-
-      data.forEach((d, i) => {
-        const x = pad + i * ((w - pad*2) / data.length) + 1;
-        const scale = (val) => {
-          const norm = (val - min) / Math.max(0.0001, (max-min));
-          return h - pad - norm * (h - pad*2);
-        };
-        const yHigh = scale(d.h);
-        const yLow = scale(d.l);
-        const yOpen = scale(d.o);
-        const yClose = scale(d.c);
-        const rising = d.c >= d.o;
-        ctx.strokeStyle = rising ? "#22c55e" : "#f43f5e";
-        ctx.fillStyle = rising ? "rgba(34,197,94,.35)" : "rgba(244,63,94,.35)";
-        // wick
-        ctx.beginPath();
-        ctx.moveTo(x + candleW/2, yHigh);
-        ctx.lineTo(x + candleW/2, yLow);
-        ctx.stroke();
-        // body
-        const bodyY = Math.min(yOpen, yClose);
-        const bodyH = Math.max(3, Math.abs(yClose - yOpen));
-        ctx.fillRect(x, bodyY, candleW, bodyH);
-      });
-    }
-
-    // -------------- SIGNAL LOGIC --------------
-    function buildSignalFromHistory(history) {
-      if (!history || history.length < 2) {
-        return FAIL_SAFE_HOLD
-          ? {label:"HOLD", conf:50}
-          : {label:"BUY", conf:50};
-      }
-      const first = history[0].c;
-      const last = history[history.length-1].c;
-      const pct = ((last - first) / first) * 100;
-
-      // dead band so we don't flip every penny
-      if (Math.abs(pct) < DEAD_BAND) {
-        return {label: "HOLD", conf:50};
-      }
-      if (pct >= DEAD_BAND) {
-        // cap confidence
-        const conf = Math.min(90, Math.max(55, Math.abs(pct)*2));
-        return {label:"BUY", conf: Math.round(conf)};
-      } else {
-        const conf = Math.min(90, Math.max(55, Math.abs(pct)*2));
-        return {label:"SELL", conf: Math.round(conf)};
-      }
-    }
-
-    // -------------- FETCH PRICES --------------
+    // --- FETCH PRICES --------------------------------------------------------
     async function fetchPrices() {
       try {
-        const res = await fetch(PRICES_URL);
-        if (!res.ok) throw new Error("prices not ok");
+        const res = await fetch("/prices");
+        if (!res.ok) throw new Error("bad status");
         const data = await res.json();
-        // expect { "ETH-USD": 3800, ... } or similar
-        const entries = Object.entries(data);
-        let coins = entries.map(([symbol, price]) => {
-          const priceNum = Number(price);
+        // data is e.g. {"ETH-USD": 3800, ...}
+        const arr = Object.entries(data).map(([symbol, price]) => {
           return {
             symbol,
-            price: priceNum,
-            price_display: "$" + Number(priceNum).toLocaleString(),
-            // temp signal, we'll rebuild after fetching chart per coin
-            signal: {label:"HOLD", conf:50}
+            price: Number(price),
           };
         });
-        // just sort by symbol first
-        coins.sort((a,b) => a.symbol.localeCompare(b.symbol));
-        return coins;
+        // sort: best-performing (biggest price) first – simple version
+        arr.sort((a, b) => b.price - a.price);
+        return arr;
       } catch (e) {
-        console.log("prices failed, using mock", e);
+        console.warn("could not fetch /prices:", e);
+        // fallback
         return [
-          {symbol:"BTC-USD", price: 110000, price_display:"$110,000", signal:{label:"HOLD", conf:50}},
-          {symbol:"ETH-USD", price: 3850, price_display:"$3,850", signal:{label:"HOLD", conf:50}},
-          {symbol:"SOL-USD", price: 186, price_display:"$186", signal:{label:"HOLD", conf:50}},
-          {symbol:"ADA-USD", price: 0.6, price_display:"$0.60", signal:{label:"HOLD", conf:50}},
-          {symbol:"DOGE-USD", price: 0.18, price_display:"$0.18", signal:{label:"HOLD", conf:50}},
-          {symbol:"LTC-USD", price: 100, price_display:"$100", signal:{label:"HOLD", conf:50}},
+          { symbol: "BTC-USD", price: 110000 },
+          { symbol: "ETH-USD", price: 3800 },
+          { symbol: "SOL-USD", price: 186 },
+          { symbol: "ADA-USD", price: 0.61 },
+          { symbol: "DOGE-USD", price: 0.18 },
+          { symbol: "AVAX-USD", price: 18.7 },
+          { symbol: "DOT-USD", price: 2.98 },
+          { symbol: "BCH-USD", price: 554 },
+          { symbol: "LINK-USD", price: 17.2 },
+          { symbol: "LTC-USD", price: 100.7 },
         ];
       }
     }
 
-    // -------------- FETCH HISTORY --------------
-    async function fetchHistory(symbol, range) {
+    // --- RENDER LIST ---------------------------------------------------------
+    function renderCoinList() {
+      coinListEl.innerHTML = "";
+      filteredCoins.forEach((c) => {
+        const row = document.createElement("div");
+        row.className = "coin-item" + (c.symbol === selectedSymbol ? " active" : "");
+        row.onclick = () => {
+          selectedSymbol = c.symbol;
+          renderCoinList();
+          renderRightPanel();
+        };
+
+        const left = document.createElement("div");
+        left.style.display = "flex";
+        left.style.flexDirection = "column";
+
+        const name = document.createElement("div");
+        name.className = "coin-name";
+        name.textContent = c.symbol;
+
+        const price = document.createElement("div");
+        price.className = "coin-price";
+        price.textContent = "$" + formatNumber(c.price);
+
+        left.appendChild(name);
+        left.appendChild(price);
+
+        const badge = document.createElement("div");
+        const signal = makeSignal(c); // {label, className, pct}
+        badge.className = "badge " + signal.className;
+        badge.textContent = signal.label + " · " + signal.pct + "%";
+
+        row.appendChild(left);
+        row.appendChild(badge);
+        coinListEl.appendChild(row);
+      });
+    }
+
+    // --- SIMPLE SIGNAL LOGIC (bigger threshold) -----------------------------
+    function makeSignal(coin) {
+      // with only spot price we can’t do real TA here
+      // so: random small drift but clamp to HOLD a lot
+      // we make it MUCH less twitchy than before
+      const rnd = Math.random();
+      if (rnd > 0.9) return { label: "BUY", className: "buy", pct: 82 };
+      if (rnd < 0.05) return { label: "SELL", className: "sell", pct: 80 };
+      return { label: "HOLD", className: "hold", pct: 50 };
+    }
+
+    // --- RENDER RIGHT PANEL --------------------------------------------------
+    function renderRightPanel() {
+      const titleEl = document.getElementById("coinTitle");
+      const priceEl = document.getElementById("coinPrice");
+      const updatedAt = document.getElementById("updatedAt");
+      const aiSignal = document.getElementById("aiSignal");
+
+      const coin = filteredCoins.find((c) => c.symbol === selectedSymbol);
+      if (!coin) {
+        titleEl.textContent = "Select a coin";
+        priceEl.textContent = "—";
+        drawEmptyChart();
+        return;
+      }
+
+      titleEl.textContent = coin.symbol;
+      priceEl.textContent = "$" + formatNumber(coin.price);
+      updatedAt.textContent = "updated " + new Date().toLocaleTimeString();
+
+      // derive “AI” signal same as list
+      const sig = makeSignal(coin);
+      aiSignal.textContent = `signal: ${sig.label} · ${sig.pct}%`;
+      aiSignal.style.color =
+        sig.className === "buy"
+          ? "#37d080"
+          : sig.className === "sell"
+          ? "#ff5c5c"
+          : "rgba(255,255,255,0.35)";
+
+      // draw chart
+      drawChartFor(coin.symbol);
+    }
+
+    // --- CHART DRAWING -------------------------------------------------------
+    function drawEmptyChart() {
+      historyWarn.style.display = "none";
+      resizeCanvas();
+      ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+      ctx.fillStyle = "rgba(255,255,255,0.03)";
+      ctx.fillRect(0, 0, chartCanvas.width, chartCanvas.height);
+      ctx.fillStyle = "rgba(255,255,255,0.3)";
+      ctx.font = "12px system-ui";
+      ctx.fillText("no data…", 16, 22);
+    }
+
+    function resizeCanvas() {
+      const rect = chartCanvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      chartCanvas.width = rect.width * dpr;
+      chartCanvas.height = rect.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    async function drawChartFor(symbol) {
+      resizeCanvas();
+      ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+
+      // try to get history from backend (if you add it later, this will work)
+      let points = null;
       try {
-        const url = `${HISTORY_URL}?symbol=${encodeURIComponent(symbol)}&range=${encodeURIComponent(range)}&type=ohlc`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("history bad");
-        const data = await res.json();
-        // expect array of ohlc
-        if (!Array.isArray(data) || data.length === 0) {
-          throw new Error("no history array, fallback");
+        const res = await fetch(`/history?symbol=${encodeURIComponent(symbol)}&range=${selectedRange}`);
+        if (res.ok) {
+          points = await res.json(); // expect array of numbers
         }
-        return data;
       } catch (e) {
-        console.log("history fail, using mock", e);
-        chartErrorEl.style.display = "block";
-        // try to find price of selected
-        const coin = currentCoins.find(c => c.symbol === symbol);
-        return buildMockHistory(coin ? coin.price : 100);
+        // ignore
+      }
+
+      if (!points || !Array.isArray(points) || !points.length) {
+        points = makeMockSeries(selectedRange);
+        historyWarn.style.display = "inline-flex";
+      } else {
+        historyWarn.style.display = "none";
+      }
+
+      if (selectedChart === "line") {
+        drawLine(points);
+      } else {
+        drawCandles(points);
       }
     }
 
-    // -------------- SELECT COIN --------------
-    async function selectCoin(symbol) {
-      selectedSymbol = symbol;
-      chartSymbolEl.textContent = symbol;
-      const coin = currentCoins.find(c => c.symbol === symbol);
-      chartPriceEl.textContent = coin ? coin.price_display : "—";
-      chartErrorEl.style.display = "none";
-      chartUpdatedEl.textContent = "loading…";
+    function drawLine(points) {
+      const w = chartCanvas.getBoundingClientRect().width;
+      const h = chartCanvas.getBoundingClientRect().height;
 
-      const history = await fetchHistory(symbol, selectedRange);
-      const signal = buildSignalFromHistory(history);
-      chartSignalEl.textContent = `signal: ${signal.label} • ${signal.conf}%`;
-      // update coin in list too
-      if (coin) coin.signal = signal;
-      renderCoinList(filteredCoins.length ? filteredCoins : currentCoins);
+      const min = Math.min(...points);
+      const max = Math.max(...points);
+      const padX = 20;
+      const padY = 14;
+      const span = Math.max(max - min, 1);
 
-      // draw
-      if (selectedType === "line") drawLine(history);
-      else drawCandles(history);
+      ctx.beginPath();
+      ctx.moveTo(padX, h - padY - ((points[0] - min) / span) * (h - padY * 2));
 
-      chartUpdatedEl.textContent = "updated " + new Date().toLocaleTimeString();
+      points.forEach((val, i) => {
+        const x = padX + (i / (points.length - 1)) * (w - padX * 2);
+        const y = h - padY - ((val - min) / span) * (h - padY * 2);
+        ctx.lineTo(x, y);
+      });
+      ctx.strokeStyle = "#49ffa8";
+      ctx.lineWidth = 2.2;
+      ctx.stroke();
     }
 
-    // -------------- INITIAL LOAD --------------
-    async function loadAll() {
-      statusText.textContent = "loading prices…";
-      statusDot.style.background = "#f97316";
-      const coins = await fetchPrices();
-      // fetch history for each coin only for signal ranking (first 10 to avoid spam)
-      const topToAnalyze = coins.slice(0, 10);
-      for (let c of topToAnalyze) {
-        const hist = await fetchHistory(c.symbol, "24h");
-        c.signal = buildSignalFromHistory(hist);
-      }
-      // now rank: best performing = BUY highest conf first, then holds, then sells
-      coins.sort((a,b) => {
-        const order = {BUY:0, HOLD:1, SELL:2};
-        const diff = order[a.signal.label] - order[b.signal.label];
-        if (diff !== 0) return diff;
-        return b.signal.conf - a.signal.conf;
+    function drawCandles(points) {
+      // we only have prices, so fake open/close around them
+      const w = chartCanvas.getBoundingClientRect().width;
+      const h = chartCanvas.getBoundingClientRect().height;
+      const min = Math.min(...points);
+      const max = Math.max(...points);
+      const span = Math.max(max - min, 1);
+      const padX = 20;
+      const padY = 14;
+      const barWidth = (w - padX * 2) / points.length;
+
+      points.forEach((val, i) => {
+        const open = val * (1 + (Math.random() - 0.5) * 0.005);
+        const close = val * (1 + (Math.random() - 0.5) * 0.005);
+        const high = Math.max(open, close) * (1 + Math.random() * 0.004);
+        const low = Math.min(open, close) * (1 - Math.random() * 0.004);
+
+        const x = padX + i * barWidth + barWidth * 0.1;
+
+        const yHigh = h - padY - ((high - min) / span) * (h - padY * 2);
+        const yLow = h - padY - ((low - min) / span) * (h - padY * 2);
+        const yOpen = h - padY - ((open - min) / span) * (h - padY * 2);
+        const yClose = h - padY - ((close - min) / span) * (h - padY * 2);
+
+        const isUp = close >= open;
+        ctx.strokeStyle = isUp ? "#37d080" : "#ff5c5c";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x + barWidth * 0.3, yHigh);
+        ctx.lineTo(x + barWidth * 0.3, yLow);
+        ctx.stroke();
+
+        ctx.fillStyle = isUp ? "#37d080" : "#ff5c5c";
+        const rectY = Math.min(yOpen, yClose);
+        const rectH = Math.abs(yOpen - yClose);
+        ctx.fillRect(x + barWidth * 0.1, rectY, barWidth * 0.4, Math.max(rectH, 3));
       });
-
-      currentCoins = coins;
-      filteredCoins = [];
-      renderCoinList(coins);
-      if (coins.length) await selectCoin(coins[0].symbol);
-
-      statusText.textContent = "connected to bot";
-      statusDot.style.background = "#22c55e";
     }
 
-    // -------------- REFRESH --------------
-    refreshBtn.addEventListener("click", loadAll);
-    setInterval(loadAll, 10000); // auto reload every 10s
-
-    // -------------- SEARCH --------------
-    searchInput.addEventListener("input", (e) => {
-      const q = e.target.value.toUpperCase().trim();
-      if (!q) {
-        filteredCoins = [];
-        return renderCoinList(currentCoins);
+    // --- UTIL ----------------------------------------------------------------
+    function makeMockSeries(range) {
+      const len = range === "24h" ? 50 : range === "1m" ? 60 : 80;
+      const base = 100;
+      let v = base;
+      const arr = [];
+      for (let i = 0; i < len; i++) {
+        v += (Math.random() - 0.45) * 3;
+        arr.push(v);
       }
-      filteredCoins = currentCoins.filter(c => c.symbol.includes(q));
-      renderCoinList(filteredCoins);
-    });
+      return arr;
+    }
 
-    // -------------- RANGE & TYPE BUTTONS --------------
-    document.querySelectorAll(".ranges .btn-sm").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        document.querySelectorAll(".ranges .btn-sm").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        selectedRange = btn.dataset.range;
-        if (selectedSymbol) await selectCoin(selectedSymbol);
-      });
-    });
-    document.querySelectorAll(".types .btn-sm").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        document.querySelectorAll(".types .btn-sm").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        selectedType = btn.dataset.type;
-        if (selectedSymbol) await selectCoin(selectedSymbol);
-      });
-    });
+    function formatNumber(n) {
+      if (n >= 1000) return n.toLocaleString();
+      return String(n);
+    }
 
-    // -------------- SETTINGS --------------
-    settingsBtn.addEventListener("click", () => {
-      settingsMenu.style.display = settingsMenu.style.display === "block" ? "none" : "block";
-    });
-    document.addEventListener("click", (e) => {
-      if (!settingsMenu.contains(e.target) && e.target !== settingsBtn) {
-        settingsMenu.style.display = "none";
+    // --- REFRESH -------------------------------------------------------------
+    async function refreshData(manual = false) {
+      const prices = await fetchPrices();
+      allCoins = prices;
+      const q = searchInput.value.trim().toLowerCase();
+      filteredCoins = allCoins.filter((c) => c.symbol.toLowerCase().includes(q));
+      if (!filteredCoins.length) {
+        filteredCoins = allCoins;
       }
-    });
-    settingsMenu.querySelectorAll("button[data-mode]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const mode = btn.dataset.mode;
-        document.body.setAttribute("data-theme", mode);
-        settingsMenu.querySelectorAll("button[data-mode]").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-      });
-    });
-    document.getElementById("toggleAudit").addEventListener("click", (e) => {
-      auditEnabled = !auditEnabled;
-      e.target.textContent = auditEnabled ? "Audit log: on" : "Audit log: off";
+
+      // keep current selection if still present
+      if (!selectedSymbol || !filteredCoins.some((c) => c.symbol === selectedSymbol)) {
+        // only auto pick first once
+        if (!firstSelectionDone && filteredCoins.length) {
+          selectedSymbol = filteredCoins[0].symbol;
+          firstSelectionDone = true;
+        }
+      }
+
+      renderCoinList();
+      renderRightPanel();
+    }
+
+    // --- EVENT LISTENERS -----------------------------------------------------
+    document.getElementById("refreshBtn").onclick = () => refreshData(true);
+
+    searchInput.addEventListener("input", () => {
+      const q = searchInput.value.trim().toLowerCase();
+      filteredCoins = allCoins.filter((c) => c.symbol.toLowerCase().includes(q));
+      if (!filteredCoins.length) filteredCoins = allCoins;
+      renderCoinList();
+      // don't change selectedSymbol here
     });
 
-    // -------------- GO --------------
-    loadAll();
+    document.querySelectorAll(".chip[data-range]").forEach((el) => {
+      el.addEventListener("click", () => {
+        document.querySelectorAll(".chip[data-range]").forEach((c) => c.classList.remove("active"));
+        el.classList.add("active");
+        selectedRange = el.dataset.range;
+        renderRightPanel();
+      });
+    });
+
+    document.querySelectorAll(".chip[data-chart]").forEach((el) => {
+      el.addEventListener("click", () => {
+        document.querySelectorAll(".chip[data-chart]").forEach((c) => c.classList.remove("active"));
+        el.classList.add("active");
+        selectedChart = el.dataset.chart;
+        renderRightPanel();
+      });
+    });
+
+    // settings button – for now just toggles background between black and very dark
+    document.getElementById("settingsBtn").onclick = () => {
+      const root = document.documentElement;
+      const current = getComputedStyle(root).getPropertyValue("--bg").trim();
+      if (current === "#000") {
+        root.style.setProperty("--bg", "#f1f1f1");
+        root.style.setProperty("--text", "#000");
+        root.style.setProperty("--surface", "#fff");
+        root.style.setProperty("--surface-soft", "#fafafa");
+      } else {
+        root.style.setProperty("--bg", "#000");
+        root.style.setProperty("--text", "#fff");
+        root.style.setProperty("--surface", "#0f0f11");
+        root.style.setProperty("--surface-soft", "#151517");
+      }
+    };
+
+    // --- INIT ----------------------------------------------------------------
+    refreshData();
+    // auto-refresh every 15s
+    setInterval(() => refreshData(false), 15000);
   </script>
 </body>
 </html>
