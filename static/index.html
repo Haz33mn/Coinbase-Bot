@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>My Coinbase Bot</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #000;
+      --card: #101010;
+      --card2: #151515;
+      --accent: #ffffff;
+      --muted: rgba(255, 255, 255, 0.4);
+      --line: #39e6d4;
+      --green: #1dd1a1;
+      --red: #ff6b6b;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: #fff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 1.5rem 1rem 4rem;
+    }
+    .app-shell {
+      width: min(1200px, 100%);
+      background: var(--card);
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      box-shadow: 0 0 60px rgba(0, 0, 0, 0.35);
+      display: flex;
+      flex-direction: column;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      padding: 1.25rem 1.5rem 0.75rem;
+    }
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: #00d977;
+      display: inline-block;
+      margin-right: .4rem;
+    }
+    .header-title {
+      font-weight: 700;
+      font-size: 1.2rem;
+    }
+    .mode-pill {
+      margin-left: auto;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 9999px;
+      display: flex;
+      overflow: hidden;
+    }
+    .mode-pill button {
+      background: transparent;
+      border: none;
+      color: #fff;
+      padding: .35rem .85rem;
+      font-size: .7rem;
+      cursor: pointer;
+      transition: .12s all;
+    }
+    .mode-pill button.active {
+      background: #fff;
+      color: #000;
+      font-weight: 600;
+    }
+    .content-row {
+      display: flex;
+      gap: 1rem;
+      padding: .75rem 1.5rem 1rem;
+      min-height: 420px;
+    }
+    .left-panel {
+      width: 220px;
+      background: rgba(255, 255, 255, 0.015);
+      border: 1px solid rgba(255, 255, 255, 0.02);
+      border-radius: 16px;
+      padding: .6rem .5rem .5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .search-box {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 999px;
+      padding: .3rem .7rem;
+      font-size: .7rem;
+      color: #fff;
+    }
+    .coins-list {
+      overflow-y: auto;
+      max-height: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: .4rem;
+      padding-right: .25rem;
+    }
+    .coin-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .25rem;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid transparent;
+      border-radius: 12px;
+      padding: .45rem .55rem;
+      cursor: pointer;
+      transition: .1s all;
+    }
+    .coin-item.active {
+      background: rgba(255, 255, 255, 0.045);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+    .coin-name {
+      font-size: .65rem;
+      font-weight: 600;
+    }
+    .coin-price {
+      font-size: .58rem;
+      opacity: .8;
+    }
+    .signal-chip {
+      font-size: .55rem;
+      padding: .15rem .4rem .18rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.055);
+      white-space: nowrap;
+    }
+    .signal-chip.buy {
+      background: rgba(39, 174, 96, 0.12);
+      border-color: rgba(39, 174, 96, 0.25);
+      color: #fff;
+    }
+    .signal-chip.sell {
+      background: rgba(231, 76, 60, 0.12);
+      border-color: rgba(231, 76, 60, 0.25);
+      color: #fff;
+    }
+    .main-panel {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.02);
+      border-radius: 16px;
+      padding: .6rem .6rem 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .chart-header {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      margin-bottom: .5rem;
+    }
+    .coin-title {
+      font-weight: 600;
+      font-size: .75rem;
+    }
+    .coin-sub {
+      font-size: .6rem;
+      color: rgba(255, 255, 255, 0.5);
+    }
+    .range-tabs, .view-tabs {
+      display: flex;
+      gap: .4rem;
+      margin-left: auto;
+    }
+    .range-tabs button,
+    .view-tabs button {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.02);
+      border-radius: 999px;
+      color: #fff;
+      font-size: .55rem;
+      padding: .3rem .7rem .35rem;
+      cursor: pointer;
+      transition: .12s all;
+    }
+    .range-tabs button.active,
+    .view-tabs button.active {
+      background: #fff;
+      color: #000;
+      font-weight: 600;
+    }
+    .chart-shell {
+      background: #090909;
+      border: 1px solid rgba(255, 255, 255, 0.015);
+      border-radius: 14px;
+      flex: 1;
+      min-height: 270px;
+      position: relative;
+      overflow: hidden;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .chart-footer {
+      font-size: .55rem;
+      color: rgba(255, 255, 255, 0.25);
+      position: absolute;
+      bottom: .3rem;
+      left: .5rem;
+    }
+    .chart-badge {
+      position: absolute;
+      bottom: .4rem;
+      right: .5rem;
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(0, 0, 0, 0.35);
+      border-radius: 999px;
+      font-size: .55rem;
+      padding: .15rem .5rem .25rem;
+      color: rgba(255, 255, 255, 0.7);
+    }
+    .refresh-bar {
+      width: 100%;
+      background: #fff;
+      height: 16px;
+      border-radius: 999px;
+      border: none;
+      margin: .25rem auto 1.2rem;
+      max-width: 95%;
+      font-size: .6rem;
+      font-weight: 600;
+      color: #000;
+      cursor: pointer;
+    }
+    @media (max-width: 900px) {
+      .content-row {
+        flex-direction: column;
+      }
+      .left-panel {
+        width: 100%;
+        flex-direction: row;
+        gap: .5rem;
+      }
+      .coins-list {
+        flex-direction: row;
+        max-height: none;
+        overflow-x: auto;
+        width: 100%;
+      }
+      .main-panel {
+        min-height: 260px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="header">
+      <div class="header-title">
+        My Coinbase Bot
+        <span style="display:block;font-size:.6rem;font-weight:400;color:var(--muted);"><span class="dot"></span>connected to bot</span>
+      </div>
+      <div class="mode-pill" id="mode-pill">
+        <button data-mode="off" class="active">Off</button>
+        <button data-mode="paper">Paper</button>
+        <button data-mode="live">Live</button>
+      </div>
+    </div>
+
+    <div class="content-row">
+      <div class="left-panel">
+        <input class="search-box" id="search" placeholder="search coin..." />
+        <div class="coins-list" id="coins"></div>
+      </div>
+      <div class="main-panel">
+        <div class="chart-header">
+          <div>
+            <div class="coin-title" id="chart-symbol">BTC-USD</div>
+            <div class="coin-sub" id="chart-price">$0.00</div>
+          </div>
+          <div class="range-tabs" id="ranges">
+            <button data-range="1D" class="active">1D</button>
+            <button data-range="1W">1W</button>
+            <button data-range="1M">1M</button>
+            <button data-range="6M">6M</button>
+            <button data-range="1Y">1Y</button>
+          </div>
+          <div class="view-tabs" id="views">
+            <button data-view="line" class="active">Line</button>
+            <button data-view="candles">Candles</button>
+          </div>
+        </div>
+        <div class="chart-shell">
+          <canvas id="chart"></canvas>
+          <div class="chart-footer" id="updated">updated …</div>
+          <div class="chart-badge" id="chart-badge">live from Coinbase</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="refresh-bar" id="refresh">Refresh</button>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    const coinsEl = document.getElementById("coins");
+    const searchEl = document.getElementById("search");
+    const chartEl = document.getElementById("chart");
+    const ctx = chartEl.getContext("2d");
+    const chartSymbolEl = document.getElementById("chart-symbol");
+    const chartPriceEl = document.getElementById("chart-price");
+    const updatedEl = document.getElementById("updated");
+    const badgeEl = document.getElementById("chart-badge");
+    const refreshBtn = document.getElementById("refresh");
+    const rangesEl = document.getElementById("ranges");
+    const viewsEl = document.getElementById("views");
+    const modePill = document.getElementById("mode-pill");
+
+    let allCoins = [];
+    let currentSymbol = "BTC-USD";
+    let currentRange = "1D";
+    let currentView = "line";
+    let currentPrices = {};
+    let currentHistory = null;
+
+    function fitCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = chartEl.getBoundingClientRect();
+      chartEl.width = rect.width * dpr;
+      chartEl.height = rect.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener("resize", fitCanvas);
+
+    async function loadPrices() {
+      const r = await fetch(API_BASE + "/prices");
+      const data = await r.json();
+      currentPrices = data.coins || {};
+      updatedEl.textContent = "updated " + (data.updated || "");
+      // set mode UI
+      [...modePill.querySelectorAll("button")].forEach(b => {
+        b.classList.toggle("active", b.dataset.mode === data.mode);
+      });
+      renderCoins();
+      // if current symbol missing, pick first
+      if (!currentPrices[currentSymbol]) {
+        const first = Object.keys(currentPrices)[0];
+        if (first) {
+          currentSymbol = first;
+        }
+      }
+      chartPriceEl.textContent = "$" + (currentPrices[currentSymbol] || 0);
+    }
+
+    function renderCoins(filter = "") {
+      coinsEl.innerHTML = "";
+      const entries = Object.entries(currentPrices);
+      const filtered = entries.filter(([sym]) => sym.toLowerCase().includes(filter.toLowerCase()));
+      filtered.forEach(([sym, price]) => {
+        const item = document.createElement("div");
+        item.className = "coin-item" + (sym === currentSymbol ? " active" : "");
+        item.dataset.symbol = sym;
+        const left = document.createElement("div");
+        const name = document.createElement("div");
+        name.className = "coin-name";
+        name.textContent = sym;
+        const p = document.createElement("div");
+        p.className = "coin-price";
+        p.textContent = "$" + price.toLocaleString(undefined, {maximumFractionDigits: 3});
+        left.appendChild(name);
+        left.appendChild(p);
+        const sig = document.createElement("div");
+        sig.className = "signal-chip hold";
+        sig.textContent = "HOLD · 50%";
+        item.appendChild(left);
+        item.appendChild(sig);
+        item.addEventListener("click", () => {
+          currentSymbol = sym;
+          chartSymbolEl.textContent = sym;
+          chartPriceEl.textContent = "$" + (currentPrices[sym] || 0);
+          [...coinsEl.children].forEach(c => c.classList.toggle("active", c.dataset.symbol === sym));
+          loadHistory(sym, currentRange);
+        });
+        coinsEl.appendChild(item);
+      });
+    }
+
+    async function loadHistory(symbol, range) {
+      badgeEl.textContent = "loading…";
+      const r = await fetch(`${API_BASE}/history/${symbol}?range=${range}`);
+      const data = await r.json();
+      currentHistory = data;
+      if (data.fallback) {
+        badgeEl.textContent = "fallback data";
+      } else {
+        badgeEl.textContent = "live from Coinbase";
+      }
+      drawChart();
+    }
+
+    function drawChart() {
+      fitCanvas();
+      ctx.clearRect(0, 0, chartEl.width, chartEl.height);
+      const w = chartEl.clientWidth;
+      const h = chartEl.clientHeight;
+
+      if (!currentHistory || currentHistory.fallback) {
+        // draw smooth sine
+        ctx.strokeStyle = "rgba(57,230,212,1)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        for (let x = 0; x < w; x++) {
+          const t = x / w;
+          const y = h * 0.5 + Math.sin(t * 4 * Math.PI) * (h * 0.3);
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        return;
+      }
+
+      const candles = currentHistory.candles;
+      if (!candles || !candles.length) return;
+
+      const values = candles.map(c => currentView === "line" ? c.close : c.close);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const pad = 14;
+      const chartW = w - pad * 2;
+      const chartH = h - pad * 2;
+
+      if (currentView === "line") {
+        ctx.strokeStyle = "rgba(57,230,212,1)";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        candles.forEach((c, i) => {
+          const x = pad + (i / Math.max(1, candles.length - 1)) * chartW;
+          const norm = (c.close - min) / (max - min || 1);
+          const y = pad + (1 - norm) * chartH;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      } else {
+        // candles
+        const barW = Math.max(3, chartW / candles.length * 0.65);
+        candles.forEach((c, i) => {
+          const x = pad + (i / Math.max(1, candles.length - 1)) * chartW;
+          const openY = pad + (1 - (c.open - min) / (max - min || 1)) * chartH;
+          const closeY = pad + (1 - (c.close - min) / (max - min || 1)) * chartH;
+          const highY = pad + (1 - (c.high - min) / (max - min || 1)) * chartH;
+          const lowY = pad + (1 - (c.low - min) / (max - min || 1)) * chartH;
+          const isUp = c.close >= c.open;
+          ctx.strokeStyle = isUp ? "rgba(57,230,212,1)" : "rgba(255,107,107,1)";
+          ctx.beginPath();
+          ctx.moveTo(x, highY);
+          ctx.lineTo(x, lowY);
+          ctx.stroke();
+
+          ctx.fillStyle = isUp ? "rgba(57,230,212,1)" : "rgba(255,107,107,1)";
+          const top = Math.min(openY, closeY);
+          const bottom = Math.max(openY, closeY);
+          const height = Math.max(2, bottom - top);
+          ctx.fillRect(x - barW / 2, top, barW, height);
+        });
+      }
+    }
+
+    // ------------------ events ------------------
+    searchEl.addEventListener("input", (e) => {
+      renderCoins(e.target.value);
+    });
+
+    rangesEl.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      currentRange = btn.dataset.range;
+      [...rangesEl.children].forEach(b => b.classList.toggle("active", b === btn));
+      loadHistory(currentSymbol, currentRange);
+    });
+
+    viewsEl.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      currentView = btn.dataset.view;
+      [...viewsEl.children].forEach(b => b.classList.toggle("active", b === btn));
+      drawChart();
+    });
+
+    refreshBtn.addEventListener("click", () => {
+      loadPrices().then(() => loadHistory(currentSymbol, currentRange));
+    });
+
+    modePill.addEventListener("click", async (e) => {
+      const btn = e.target.closest("button");
+      if (!btn) return;
+      const mode = btn.dataset.mode;
+      await fetch(API_BASE + "/trade-mode?mode=" + mode, { method: "POST" });
+      [...modePill.querySelectorAll("button")].forEach(b => b.classList.toggle("active", b === btn));
+    });
+
+    // ------------------ init ------------------
+    (async () => {
+      await loadPrices();
+      await loadHistory(currentSymbol, currentRange);
+    })();
+  </script>
+</body>
+</html>
