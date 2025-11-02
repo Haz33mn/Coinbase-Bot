@@ -4,6 +4,8 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
+import requests  # make sure `requests` is in requirements.txt
+
 from fastapi import FastAPI, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
@@ -18,6 +20,7 @@ app.add_middleware(
 )
 
 STATE_FILE = Path("state.json")
+COINBASE_PRODUCTS_URL = "https://api.exchange.coinbase.com/products"
 
 
 def now_iso() -> str:
@@ -26,18 +29,8 @@ def now_iso() -> str:
 
 def default_state() -> Dict[str, Any]:
     return {
-        "connected": True,
-        "coins": [
-            {"symbol": "BTC-USD", "price": 109_987.035, "signal": "HOLD", "conf": 50},
-            {"symbol": "ETH-USD", "price": 3_828.332, "signal": "HOLD", "conf": 50},
-            {"symbol": "BCH-USD", "price": 552.575, "signal": "HOLD", "conf": 50},
-            {"symbol": "SOL-USD", "price": 195.295, "signal": "HOLD", "conf": 50},
-            {"symbol": "LTC-USD", "price": 98.445, "signal": "HOLD", "conf": 50},
-            {"symbol": "AVAX-USD", "price": 118.12, "signal": "HOLD", "conf": 50},
-            {"symbol": "LINK-USD", "price": 171.38, "signal": "HOLD", "conf": 50},
-            {"symbol": "DOT-USD", "price": 32.95, "signal": "HOLD", "conf": 50},
-            {"symbol": "ADA-USD", "price": 0.612, "signal": "HOLD", "conf": 50},
-        ],
+        "connected": False,
+        "coins": [],
         "selected": "BTC-USD",
         "real_auto": False,
         "real_trades": [],
@@ -61,7 +54,92 @@ def save_state(state: Dict[str, Any]) -> None:
 STATE = load_state()
 
 
-# ----- history generator (realistic-ish, no sine) -----
+# ---------- coinbase sync ----------
+
+def fetch_coinbase_usd_markets() -> List[Dict[str, Any]]:
+    """
+    Pull all products from Coinbase Exchange, keep only USD quote ones,
+    and build our internal coin objects.
+    """
+    try:
+        resp = requests.get(COINBASE_PRODUCTS_URL, timeout=5)
+        resp.raise_for_status()
+        products = resp.json()
+    except Exception:
+        # if Coinbase is down, keep whatever we had
+        return []
+
+    coins: List[Dict[str, Any]] = []
+    for p in products:
+        # symbol is like "BTC-USD"
+        if p.get("quote_currency") != "USD":
+            continue
+        symbol = p.get("id")
+        if not symbol:
+            continue
+
+        # try to get a price (public ticker)
+        price = 0.0
+        try:
+            t = requests.get(
+                f"https://api.exchange.coinbase.com/products/{symbol}/ticker",
+                timeout=4,
+            )
+            if t.status_code == 200:
+                jt = t.json()
+                price = float(jt.get("price") or 0.0)
+        except Exception:
+            pass
+
+        coins.append(
+            {
+                "symbol": symbol,
+                "price": price,
+                "signal": "HOLD",
+                "conf": 50,
+            }
+        )
+
+    return coins
+
+
+def ensure_coins():
+    """
+    On startup or when /sync-coins is hit, make sure we have
+    *all* Coinbase USD markets.
+    """
+    global STATE
+    coins = fetch_coinbase_usd_markets()
+    if coins:
+        # if we already had a selected coin, keep it if it still exists
+        prev_selected = STATE.get("selected") or "BTC-USD"
+        STATE["coins"] = sorted(coins, key=lambda c: c["symbol"])
+        if any(c["symbol"] == prev_selected for c in STATE["coins"]):
+            STATE["selected"] = prev_selected
+        else:
+            STATE["selected"] = STATE["coins"][0]["symbol"]
+        STATE["connected"] = True
+        STATE["last_update"] = now_iso()
+        save_state(STATE)
+    else:
+        # no internet / no Coinbase -> fall back to small static list
+        if not STATE.get("coins"):
+            STATE["connected"] = False
+            STATE["coins"] = [
+                {"symbol": "BTC-USD", "price": 109_987.035, "signal": "HOLD", "conf": 50},
+                {"symbol": "ETH-USD", "price": 3_828.332, "signal": "HOLD", "conf": 50},
+            ]
+            STATE["selected"] = "BTC-USD"
+            STATE["last_update"] = now_iso()
+            save_state(STATE)
+
+
+# do it once on boot
+ensure_coins()
+
+
+# ---------- history generator ----------
+
 def _lcg(seed: int):
     a, c, m = 1103515245, 12345, 2**31
     x = seed
@@ -71,6 +149,7 @@ def _lcg(seed: int):
 
 
 def make_history(symbol: str, tf: str) -> List[Dict[str, float]]:
+    # more points for longer TFs
     if tf == "1D":
         n, vol = 96, 0.002
     elif tf == "1W":
@@ -82,6 +161,7 @@ def make_history(symbol: str, tf: str) -> List[Dict[str, float]]:
     else:  # 1Y
         n, vol = 240, 0.007
 
+    # base price from state if we have it
     base_price = 100.0
     for c in STATE.get("coins", []):
         if c["symbol"] == symbol:
@@ -110,8 +190,9 @@ def make_history(symbol: str, tf: str) -> List[Dict[str, float]]:
             }
         )
     return out
-# ------------------------------------------------------
 
+
+# ---------- routes ----------
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -136,8 +217,25 @@ async def select_coin(payload: Dict[str, str] = Body(...)):
     sym = payload.get("symbol")
     if not sym:
         return {"ok": False, "error": "symbol required"}
+
+    # if symbol not in list but user asked for it, we try to add it
     if not any(c["symbol"] == sym for c in STATE["coins"]):
-        return {"ok": False, "error": "unknown symbol"}
+        # try to fetch price for that exact product
+        try:
+            t = requests.get(
+                f"https://api.exchange.coinbase.com/products/{sym}/ticker", timeout=4
+            )
+            if t.status_code == 200:
+                jt = t.json()
+                price = float(jt.get("price") or 0.0)
+            else:
+                price = 0.0
+        except Exception:
+            price = 0.0
+        STATE["coins"].append(
+            {"symbol": sym, "price": price, "signal": "HOLD", "conf": 50}
+        )
+
     STATE["selected"] = sym
     STATE["last_update"] = now_iso()
     save_state(STATE)
@@ -161,22 +259,27 @@ async def real_toggle(payload: Dict[str, Any] = Body(...)):
 @app.post("/real/trade")
 async def real_trade(payload: Dict[str, Any] = Body(...)):
     """
-    This is just a logger.
-    Whatever actually hits Coinbase should call THIS with:
-    { "symbol": "BTC-USD", "side": "BUY", "price": 109500, "qty": 0.0009 }
+    Your real trading worker / webhook should call this EVERY time it
+    actually buys/sells on Coinbase. This is just a logger.
     """
     symbol = payload.get("symbol", STATE.get("selected", "BTC-USD"))
     side = (payload.get("side") or "BUY").upper()
     price = float(payload.get("price") or 0)
     qty = float(payload.get("qty") or 0)
     trade = {
-        "symbol": symbol,
-        "side": side,
-        "price": price,
-        "qty": qty,
-        "at": now_iso(),
+      "symbol": symbol,
+      "side": side,
+      "price": price,
+      "qty": qty,
+      "at": now_iso(),
     }
     STATE.setdefault("real_trades", []).append(trade)
     STATE["last_update"] = now_iso()
     save_state(STATE)
     return {"ok": True, "trade": trade}
+
+
+@app.post("/sync-coins")
+async def sync_coins():
+    ensure_coins()
+    return {"ok": True, "count": len(STATE.get("coins", []))}
