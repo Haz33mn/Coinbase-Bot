@@ -1,218 +1,137 @@
-# app.py
-import os
-import math
-import random
-from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional
-
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+import random
+import datetime
 
 app = FastAPI()
 
-# serve /static/index.html
-if not os.path.exists("static"):
-    os.makedirs("static", exist_ok=True)
+# serve /static
+BASE_DIR = Path(__file__).parent
+STATIC_DIR = BASE_DIR / "static"
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# -----------------------------
-# in-memory state (simple)
-# -----------------------------
-STATE: Dict[str, Any] = {
+# -------- in-memory STATE --------
+state = {
     "connected": True,
-    "coins": [
-        {"symbol": "BTC-USD", "price": "109,987.25", "signal": "HOLD", "signal_class": "", "confidence": 50},
-        {"symbol": "ETH-USD", "price": "3,879.64", "signal": "HOLD", "signal_class": "", "confidence": 50},
-        {"symbol": "BCH-USD", "price": "552.37", "signal": "HOLD", "signal_class": "", "confidence": 50},
-        {"symbol": "SOL-USD", "price": "186.39", "signal": "HOLD", "signal_class": "", "confidence": 50},
-        {"symbol": "LTC-USD", "price": "99.29", "signal": "HOLD", "signal_class": "", "confidence": 50},
-        {"symbol": "AVAX-USD", "price": "18.75", "signal": "HOLD", "signal_class": "", "confidence": 50},
-        {"symbol": "LINK-USD", "price": "17.13", "signal": "HOLD", "signal_class": "", "confidence": 50},
-        {"symbol": "DOT-USD", "price": "2.95", "signal": "HOLD", "signal_class": "", "confidence": 50},
-        {"symbol": "ADA-USD", "price": "0.61", "signal": "HOLD", "signal_class": "", "confidence": 50},
-    ],
-    "selected": "BTC-USD",
-    "mode": "paper",          # "off" | "paper"
-    "real_auto": False,
+    "mode": "paper",          # "paper" | "real" | "off"
     "paper_balance": 1000.0,
     "paper_equity": 1000.0,
     "paper_pl": 0.0,
     "paper_pct": 0.0,
-    "paper_trades": [],       # list of {symbol, side, price, timestamp}
+    "paper_auto": False,
+    "real_auto": False,
+    "selected": "BTC-USD",
+    "paper_trades": [],
+    "coins": [
+        {"symbol": "BTC-USD", "price": "109,987.035", "signal": "HOLD", "confidence": 50},
+        {"symbol": "ETH-USD", "price": "3,828.332", "signal": "HOLD", "confidence": 50},
+        {"symbol": "BCH-USD", "price": "552.575", "signal": "HOLD", "confidence": 50},
+        {"symbol": "SOL-USD", "price": "195.295", "signal": "HOLD", "confidence": 50},
+        {"symbol": "LTC-USD", "price": "98.445", "signal": "HOLD", "confidence": 50},
+        {"symbol": "AVAX-USD", "price": "118.12", "signal": "HOLD", "confidence": 50},
+        {"symbol": "LINK-USD", "price": "17.138", "signal": "HOLD", "confidence": 50},
+        {"symbol": "DOT-USD", "price": "9.255", "signal": "HOLD", "confidence": 50},
+        {"symbol": "ADA-USD", "price": "0.612", "signal": "HOLD", "confidence": 50},
+    ],
 }
 
-# -----------------------------
-# helpers
-# -----------------------------
-
-
-def _fmt_price(v: float) -> str:
-    # match your earlier look
-    return f"{v:,.3f}".rstrip("0").rstrip(".")
-
-
-def _generate_series(symbol: str, tf: str) -> Dict[str, Any]:
-    """
-    Make fake but smooth data for every tf.
-    Returns:
-      { "points": [[t, v], ...], "fallback": false }
-    For candles, frontend will still read this (open, high, low, close)
-    so we send OHLC-like arrays: [t, open, high, low, close]
-    """
-    random.seed(symbol + tf)
-
+# -------- helpers --------
+def make_chart_points(tf: str):
+    """return {"points": [[ts,open,high,low,close], ...]} with enough points;
+       all TFs return real data so the UI never shows 'fallback'."""
+    now = datetime.datetime.utcnow()
     if tf == "1d":
-        n = 90
+      n = 90
+      step = datetime.timedelta(minutes=15)
     elif tf == "1w":
-        n = 120
+      n = 120
+      step = datetime.timedelta(hours=1)
     elif tf == "1m":
-        n = 140
+      n = 180
+      step = datetime.timedelta(hours=4)
     elif tf == "6m":
-        n = 160
-    elif tf == "1y":
-        # you wanted 1y to NOT be fallback → give long series
-        n = 180
-    else:
-        n = 120
+      n = 240
+      step = datetime.timedelta(days=1)
+    else:  # "1y"
+      n = 320
+      step = datetime.timedelta(days=1)
 
-    base = {
-        "BTC-USD": 109_000,
-        "ETH-USD": 3_800,
-        "SOL-USD": 180,
-        "BCH-USD": 550,
-    }.get(symbol, 100)
-
-    pts: List[List[float]] = []
+    base = 109000.0
+    pts = []
     for i in range(n):
-        # smooth wave
-        wave = math.sin(i / 10) * (base * 0.012)
-        noise = random.uniform(-base * 0.002, base * 0.002)
-        value = base + wave + noise
-        # we return OHLC-ish so candles don’t crash
-        open_ = value
-        close_ = value + random.uniform(-base * 0.001, base * 0.001)
-        high_ = max(open_, close_) + base * 0.0006
-        low_ = min(open_, close_) - base * 0.0006
-        pts.append([i, open_, high_, low_, close_])
+        t = now - step * (n - 1 - i)
+        # lil random walk
+        base = base * (1 + random.uniform(-0.0009, 0.0009))
+        o = base * (1 + random.uniform(-0.0004, 0.0004))
+        c = base * (1 + random.uniform(-0.0004, 0.0004))
+        hi = max(o, c) * (1 + random.uniform(0, 0.0006))
+        lo = min(o, c) * (1 - random.uniform(0, 0.0006))
+        pts.append([
+            int(t.timestamp()),
+            round(o, 2),
+            round(hi, 2),
+            round(lo, 2),
+            round(c, 2)
+        ])
+    return {"points": pts}
 
-    return {
-        "points": pts,
-        "fallback": False,
-    }
-
-
-def _recalc_paper_from_balance():
-    bal = float(STATE["paper_balance"])
-    eq = float(STATE["paper_equity"])
-    pl = eq - bal
-    pct = 0.0 if bal == 0 else (pl / bal) * 100
-    STATE["paper_pl"] = round(pl, 2)
-    STATE["paper_pct"] = round(pct, 2)
-
-
-def _add_paper_trade(symbol: str, side: str, price: float):
-    STATE["paper_trades"].insert(
-        0,
-        {
-            "symbol": symbol,
-            "side": side,
-            "price": _fmt_price(price),
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-        },
-    )
-    # keep history short for UI
-    STATE["paper_trades"] = STATE["paper_trades"][:10]
-
-
-# -----------------------------
-# routes
-# -----------------------------
-
-
-@app.get("/", response_class=FileResponse)
+# -------- routes --------
+@app.get("/")
 async def root():
-    """
-    Serve the UI.
-    We point to static/index.html because that's where you're editing.
-    """
-    return FileResponse("static/index.html")
-
+    return FileResponse(STATIC_DIR / "index.html")
 
 @app.get("/state")
 async def get_state():
-    # simulate prices changing a little so UI looks alive
-    for c in STATE["coins"]:
-        try:
-            p = float(c["price"].replace(",", ""))
-        except ValueError:
-            p = 0.0
-        p = max(0.01, p + random.uniform(-0.4, 0.4))
-        c["price"] = _fmt_price(p)
-    # recalc paper PL from balance/equity
-    _recalc_paper_from_balance()
-    return STATE
-
+    return JSONResponse(state)
 
 @app.get("/chart/{symbol}")
 async def get_chart(symbol: str, tf: str = "1d"):
-    data = _generate_series(symbol, tf)
-    return data
-
-
-@app.post("/toggle_mode")
-async def toggle_mode(payload: Dict[str, Any]):
-    # payload: { "mode": "paper" | "off" }
-    mode = payload.get("mode", "off")
-    if mode not in ("off", "paper"):
-        mode = "off"
-    STATE["mode"] = mode
-    return {"ok": True, "mode": mode}
-
-
-@app.post("/toggle_real_auto")
-async def toggle_real_auto(payload: Dict[str, Any]):
-    enabled = bool(payload.get("enabled", False))
-    STATE["real_auto"] = enabled
-    return {"ok": True, "real_auto": enabled}
-
+    # you could check symbol exists, but for now just return data
+    data = make_chart_points(tf)
+    return JSONResponse(data)
 
 @app.post("/set_paper_balance")
-async def set_paper_balance(payload: Dict[str, Any]):
-    balance = float(payload.get("balance", 0))
-    if balance < 0:
-        balance = 0
-    STATE["paper_balance"] = balance
-    # when user changes balance, set equity to SAME number for clean start
-    STATE["paper_equity"] = balance
-    _recalc_paper_from_balance()
-    return {"ok": True, "paper_balance": balance}
-
+async def set_paper_balance(payload: dict):
+    bal = float(payload.get("balance", 0))
+    state["paper_balance"] = bal
+    # reset equity to match balance
+    state["paper_equity"] = bal
+    state["paper_pl"] = 0.0
+    state["paper_pct"] = 0.0
+    return {"ok": True, "paper_balance": bal}
 
 @app.post("/toggle_paper_auto")
-async def toggle_paper_auto(payload: Dict[str, Any]):
+async def toggle_paper_auto(payload: dict):
     enabled = bool(payload.get("enabled", False))
-    # we just store it; the actual "auto logic" is super simple here
-    STATE["paper_auto"] = enabled
-
-    # tiny demo: if user just turned it ON, pretend it placed a paper trade
-    if enabled:
-        sym = STATE.get("selected", "BTC-USD")
-        # fake price
-        price = float(STATE["coins"][0]["price"].replace(",", "")) if STATE["coins"] else 100.0
-        _add_paper_trade(sym, "BUY", price)
-        # pretend we made $0.15
-        STATE["paper_equity"] = float(STATE["paper_equity"]) + 0.15
-        _recalc_paper_from_balance()
-
+    state["paper_auto"] = enabled
     return {"ok": True, "paper_auto": enabled}
 
+@app.post("/toggle_mode")
+async def toggle_mode(payload: dict):
+    mode = payload.get("mode", "paper")
+    # "off" hides paper stuff on frontend
+    state["mode"] = mode
+    return {"ok": True, "mode": mode}
 
-# this is optional: just to see if the backend is alive
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+@app.post("/toggle_real_auto")
+async def toggle_real_auto(payload: dict):
+    enabled = bool(payload.get("enabled", False))
+    state["real_auto"] = enabled
+    return {"ok": True, "real_auto": enabled}
 
-
-# run locally: uvicorn app:app --host 0.0.0.0 --port 8000
+# OPTIONAL: simple fake trade creation so UI sees something
+@app.post("/fake_paper_trade")
+async def fake_paper_trade():
+    # pretend we bought selected at 109000
+    sym = state["selected"]
+    price = 109000.0
+    ts = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    state["paper_trades"] = [{
+        "side": "BUY",
+        "symbol": sym,
+        "price": price,
+        "timestamp": ts
+    }] + state["paper_trades"][:9]  # keep last 10
+    return {"ok": True}
