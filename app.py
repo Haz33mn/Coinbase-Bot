@@ -1,10 +1,12 @@
-# app.py
 import os
-from fastapi import FastAPI, Body
-from fastapi.responses import HTMLResponse, FileResponse
-from fastapi.middleware.cors import CORSMiddleware
+import json
+from pathlib import Path
 from datetime import datetime, timezone
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
+from fastapi import FastAPI, Body
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
@@ -15,36 +17,66 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# pretend DB in memory
-STATE: Dict[str, Any] = {
-    "connected": True,
-    "coins": [
-        {"symbol": "BTC-USD", "price": 109987.035, "signal": "HOLD", "conf": 50},
-        {"symbol": "ETH-USD", "price": 3828.332, "signal": "HOLD", "conf": 50},
-        {"symbol": "BCH-USD", "price": 552.575, "signal": "HOLD", "conf": 50},
-        {"symbol": "SOL-USD", "price": 195.295, "signal": "HOLD", "conf": 50},
-        {"symbol": "LTC-USD", "price": 98.445, "signal": "HOLD", "conf": 50},
-        {"symbol": "AVAX-USD", "price": 118.12, "signal": "HOLD", "conf": 50},
-        {"symbol": "LINK-USD", "price": 171.38, "signal": "HOLD", "conf": 50},
-        {"symbol": "DOT-USD", "price": 32.95, "signal": "HOLD", "conf": 50},
-        {"symbol": "ADA-USD", "price": 9.82, "signal": "HOLD", "conf": 50},
-    ],
-    "selected": "BTC-USD",           # <— this is what we’ll update
-    "paper_enabled": True,
-    "paper_auto": False,             # ON/OFF button in UI
-    "paper_balance": 1000.0,
-    "paper_equity": 1000.0,
-    "paper_pl": 0.0,
-    "paper_trades": [],              # list of dicts
-    "real_auto": False,              # real auto OFF / ON
-    "last_update": datetime.now(timezone.utc).isoformat(),
-}
+# ---------- simple file persistence ----------
+STATE_FILE = Path("state.json")
 
-# mock price history generator
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def default_state() -> Dict[str, Any]:
+    return {
+        "connected": True,
+        "coins": [
+            {"symbol": "BTC-USD", "price": 109987.035, "signal": "HOLD", "conf": 50},
+            {"symbol": "ETH-USD", "price": 3828.332, "signal": "HOLD", "conf": 50},
+            {"symbol": "BCH-USD", "price": 552.575, "signal": "HOLD", "conf": 50},
+            {"symbol": "SOL-USD", "price": 195.295, "signal": "HOLD", "conf": 50},
+            {"symbol": "LTC-USD", "price": 98.445, "signal": "HOLD", "conf": 50},
+            {"symbol": "AVAX-USD", "price": 118.12, "signal": "HOLD", "conf": 50},
+            {"symbol": "LINK-USD", "price": 171.38, "signal": "HOLD", "conf": 50},
+            {"symbol": "DOT-USD", "price": 32.95, "signal": "HOLD", "conf": 50},
+            {"symbol": "ADA-USD", "price": 9.82, "signal": "HOLD", "conf": 50},
+        ],
+        "selected": "BTC-USD",
+        # paper
+        "paper_enabled": True,
+        "paper_auto": False,
+        "paper_balance": 1000.0,
+        "paper_equity": 1000.0,
+        "paper_pl": 0.0,
+        "paper_trades": [],
+        # real
+        "real_auto": False,
+        "real_trades": [],
+        "last_update": _now_iso(),
+    }
+
+
+def load_state() -> Dict[str, Any]:
+    if STATE_FILE.exists():
+        try:
+            with STATE_FILE.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data
+        except Exception:
+            return default_state()
+    return default_state()
+
+
+def save_state(state: Dict[str, Any]) -> None:
+    # render free dynos may lose this on restart/redeploy, but this survives page reloads
+    with STATE_FILE.open("w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2)
+
+
+STATE = load_state()
+
+
+# ---------- helpers ----------
 def make_history(symbol: str, tf: str) -> List[Dict[str, float]]:
-    # just 1D/1W/1M/6M/1Y shapes — 1Y must NOT fallback
-    pts = 120
-    base = 100.0
+    # just mock data so UI always has something
     if tf == "1D":
         pts = 60
     elif tf == "1W":
@@ -53,111 +85,150 @@ def make_history(symbol: str, tf: str) -> List[Dict[str, float]]:
         pts = 100
     elif tf == "6M":
         pts = 140
-    elif tf == "1Y":
-        pts = 160   # <-- real data shape, so UI won’t show “fallback”
-    out = []
+    else:  # 1Y or anything else
+        pts = 160
+
+    base = 100.0
+    arr = []
     for i in range(pts):
-        # simple wavy data
-        price = base + (i % 20) * 1.5
-        out.append({
-            "t": i,
-            "o": price - 0.3,
-            "h": price + 0.7,
-            "l": price - 0.9,
-            "c": price,
-        })
-    return out
+        price = base + (i % 20) * 1.4
+        arr.append(
+            {
+                "t": i,
+                "o": price - 0.4,
+                "h": price + 0.8,
+                "l": price - 1.0,
+                "c": price,
+            }
+        )
+    return arr
 
 
+# ---------- routes ----------
 @app.get("/", response_class=HTMLResponse)
-async def root():
-    # serve /static/index.html
+async def index():
     static_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
     return FileResponse(static_path)
 
 
 @app.get("/state")
 async def get_state():
+    # trim trades to last 12 each
+    paper_trades = (STATE.get("paper_trades") or [])[-12:][::-1]
+    real_trades = (STATE.get("real_trades") or [])[-12:][::-1]
     return {
-        "connected": STATE["connected"],
-        "coins": STATE["coins"],
-        "selected": STATE["selected"],
-        "paper_enabled": STATE["paper_enabled"],
-        "paper_auto": STATE["paper_auto"],
-        "paper_balance": STATE["paper_balance"],
-        "paper_equity": STATE["paper_equity"],
-        "paper_pl": STATE["paper_pl"],
-        "paper_trades": STATE["paper_trades"][-10:][::-1],  # latest 10
-        "real_auto": STATE["real_auto"],
-        "last_update": STATE["last_update"],
+        "connected": STATE.get("connected", False),
+        "coins": STATE.get("coins", []),
+        "selected": STATE.get("selected"),
+        "paper_enabled": STATE.get("paper_enabled", True),
+        "paper_auto": STATE.get("paper_auto", False),
+        "paper_balance": STATE.get("paper_balance", 0.0),
+        "paper_equity": STATE.get("paper_equity", 0.0),
+        "paper_pl": STATE.get("paper_pl", 0.0),
+        "paper_trades": paper_trades,
+        "real_auto": STATE.get("real_auto", False),
+        "real_trades": real_trades,
+        "last_update": STATE.get("last_update"),
     }
 
 
-# 🔴 NEW: when the user clicks a coin in the UI, call this
 @app.post("/select")
 async def select_coin(payload: Dict[str, str] = Body(...)):
     symbol = payload.get("symbol")
     if not symbol:
         return {"ok": False, "error": "symbol required"}
-    # make sure it’s in the list
     if not any(c["symbol"] == symbol for c in STATE["coins"]):
         return {"ok": False, "error": "unknown symbol"}
     STATE["selected"] = symbol
-    STATE["last_update"] = datetime.now(timezone.utc).isoformat()
+    STATE["last_update"] = _now_iso()
+    save_state(STATE)
     return {"ok": True, "selected": symbol}
 
 
 @app.get("/history/{symbol}")
-async def get_history(symbol: str, tf: str = "1D"):
-    # front-end asks /history/BTC-USD?tf=1M
-    data = make_history(symbol, tf)
-    return {"symbol": symbol, "tf": tf, "points": data}
+async def history(symbol: str, tf: str = "1D"):
+    return {
+        "symbol": symbol,
+        "tf": tf,
+        "points": make_history(symbol, tf),
+    }
 
 
 @app.post("/paper/balance")
-async def set_paper_balance(payload: Dict[str, float] = Body(...)):
+async def set_paper_balance(payload: Dict[str, Any] = Body(...)):
     bal = float(payload.get("balance", 1000))
     STATE["paper_balance"] = bal
-    # reset equity & pl to make it simple
     STATE["paper_equity"] = bal
     STATE["paper_pl"] = 0.0
-    STATE["last_update"] = datetime.now(timezone.utc).isoformat()
+    STATE["last_update"] = _now_iso()
+    save_state(STATE)
     return {"ok": True, "paper_balance": bal}
 
 
 @app.post("/paper/toggle")
-async def toggle_paper(payload: Dict[str, bool] = Body(...)):
+async def toggle_paper(payload: Dict[str, Any] = Body(...)):
     STATE["paper_auto"] = bool(payload.get("on", False))
-    STATE["last_update"] = datetime.now(timezone.utc).isoformat()
+    STATE["last_update"] = _now_iso()
+    save_state(STATE)
     return {"ok": True, "paper_auto": STATE["paper_auto"]}
 
 
-@app.post("/real/toggle")
-async def toggle_real(payload: Dict[str, bool] = Body(...)):
-    STATE["real_auto"] = bool(payload.get("on", False))
-    STATE["last_update"] = datetime.now(timezone.utc).isoformat()
-    return {"ok": True, "real_auto": STATE["real_auto"]}
-
-
-# fake paper trade executor — front-end can call this manually too
 @app.post("/paper/fake-trade")
-async def fake_trade(payload: Dict[str, Any] = Body(...)):
+async def paper_fake_trade(payload: Dict[str, Any] = Body(...)):
     symbol = payload.get("symbol", STATE["selected"])
     side = payload.get("side", "BUY").upper()
     price = float(payload.get("price", 100.0))
     qty = float(payload.get("qty", 1.0))
 
-    # update equity/pl just to show in UI
+    # update equity
     if side == "BUY":
-        STATE["paper_pl"] -= price * qty * 0.000  # no fee in paper for now
+        # pretend we open a position
+        STATE["paper_equity"] -= price * qty * 0.0
+    elif side == "SELL":
+        STATE["paper_equity"] += price * qty * 0.0
+
+    # recalc P/L vs balance
+    STATE["paper_pl"] = STATE["paper_equity"] - STATE["paper_balance"]
 
     trade = {
+        "kind": "paper",
         "symbol": symbol,
         "side": side,
         "price": price,
         "qty": qty,
-        "at": datetime.now(timezone.utc).isoformat(),
+        "at": _now_iso(),
     }
-    STATE["paper_trades"].append(trade)
-    STATE["last_update"] = datetime.now(timezone.utc).isoformat()
+    STATE.setdefault("paper_trades", []).append(trade)
+    STATE["last_update"] = _now_iso()
+    save_state(STATE)
+    return {"ok": True, "trade": trade}
+
+
+@app.post("/real/toggle")
+async def real_toggle(payload: Dict[str, Any] = Body(...)):
+    STATE["real_auto"] = bool(payload.get("on", False))
+    STATE["last_update"] = _now_iso()
+    save_state(STATE)
+    return {"ok": True, "real_auto": STATE["real_auto"]}
+
+
+@app.post("/real/fake-trade")
+async def real_fake_trade(payload: Dict[str, Any] = Body(...)):
+    # this is just a logger so you can SEE what the AI would have done for real
+    symbol = payload.get("symbol", STATE["selected"])
+    side = payload.get("side", "BUY").upper()
+    price = float(payload.get("price", 100.0))
+    qty = float(payload.get("qty", 1.0))
+
+    trade = {
+        "kind": "real",
+        "symbol": symbol,
+        "side": side,
+        "price": price,
+        "qty": qty,
+        "at": _now_iso(),
+    }
+    STATE.setdefault("real_trades", []).append(trade)
+    STATE["last_update"] = _now_iso()
+    save_state(STATE)
     return {"ok": True, "trade": trade}
