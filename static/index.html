@@ -3,487 +3,451 @@
 <head>
   <meta charset="UTF-8" />
   <title>My Coinbase Bot</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root {
-      --bg: #000;
-      --surface: #121212;
-      --surface2: #161616;
-      --accent: #00bcd4;
-      --accent-soft: rgba(0,188,212,0.18);
-      --green: #1de975;
-      --red: #ff4d67;
-      --muted: rgba(255,255,255,0.35);
-      --text: #fff;
-      --radius: 14px;
+      --bg:#000;
+      --panel:#101010;
+      --panel2:#151515;
+      --accent:#00bcd4;
+      --accent-soft:rgba(0,188,212,.15);
+      --muted:rgba(255,255,255,.35);
+      --green:#1de975;
+      --red:#ff4d67;
     }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont,"Segoe UI",sans-serif;
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      padding: 1.5rem 0 4rem;
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:#fff;
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      min-height:100vh;
+      display:flex;
+      justify-content:center;
+      padding:1.5rem 0 4rem;
     }
-    .hidden { display: none !important; }
-    .app-shell {
-      width: min(1200px, 100%);
-      background: rgba(18,18,18,0.2);
-      border: 1px solid rgba(255,255,255,0.02);
-      border-radius: 20px;
-      overflow: hidden;
+    .app{
+      width:min(1200px,100%);
+      border:1px solid rgba(255,255,255,.03);
+      border-radius:20px;
+      background:rgba(0,0,0,.15);
     }
-    header {
-      display: flex;
-      align-items: center;
-      gap: .75rem;
-      padding: 1.25rem 1.75rem .75rem;
+    header{
+      display:flex;
+      align-items:center;
+      gap:.6rem;
+      padding:1.1rem 1.6rem .8rem;
     }
-    .dot {
-      width: 10px; height: 10px; border-radius: 999px;
-      background: #fe3434;
+    .dot{
+      width:10px;height:10px;border-radius:999px;
+      background:#fe3434;
     }
-    .dot.online { background: #4deb5d; }
-    .title { font-weight: 650; }
-    .refresh-btn {
-      margin-left: auto;
-      background: transparent;
-      border: none;
-      color: var(--muted);
-      cursor: pointer;
-      font-size: .85rem;
+    .dot.online{background:#35ea53}
+    .title{font-weight:620}
+    .body{
+      display:grid;
+      grid-template-columns:240px 1fr;
+      gap:1.25rem;
+      padding:0 1.6rem 1rem;
     }
-    .body-row {
-      display: grid;
-      grid-template-columns: 240px 1fr;
-      gap: 1.25rem;
-      padding: 0 1.75rem 1.25rem;
+    .coins{
+      background:rgba(0,0,0,.25);
+      border:1px solid rgba(255,255,255,.02);
+      border-radius:16px;
+      max-height:360px;
+      overflow-y:auto;
     }
-    .coins-panel {
-      background: rgba(0,0,0,0.35);
-      border: 1px solid rgba(255,255,255,0.02);
-      border-radius: 18px;
-      overflow-y: auto;
-      max-height: 360px;
+    .coins input{
+      width:calc(100% - 1rem);
+      margin:.5rem .5rem 0;
+      background:rgba(255,255,255,.02);
+      border:1px solid rgba(255,255,255,.03);
+      border-radius:10px;
+      padding:.35rem .5rem;
+      color:#fff;
+      font-size:.75rem;
+      outline:none;
     }
-    .coins-panel input {
-      width: 100%;
-      background: rgba(255,255,255,0.02);
-      border: 1px solid rgba(255,255,255,0.02);
-      border-radius: 12px;
-      padding: .45rem .6rem;
-      color: #fff;
-      margin: .75rem .75rem 0;
-      outline: none;
-      font-size: .75rem;
+    .coin{
+      margin:.5rem .45rem 0;
+      padding:.45rem .5rem;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      border-radius:12px;
+      cursor:pointer;
     }
-    .coin-item {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: .55rem .75rem;
-      margin: .5rem .5rem 0;
-      border-radius: 12px;
-      cursor: pointer;
+    .coin.active{
+      background:rgba(0,188,212,.12);
+      border:1px solid rgba(0,188,212,.35);
     }
-    .coin-item.active {
-      background: rgba(0,188,212,0.12);
-      border: 1px solid rgba(0,188,212,0.35);
+    .coin-name{font-size:.78rem;}
+    .coin-price{font-size:.6rem;color:var(--muted);}
+    .signal{
+      font-size:.58rem;
+      padding:.14rem .45rem;
+      border-radius:999px;
+      background:rgba(255,255,255,.03);
     }
-    .coin-left { display: flex; flex-direction: column; gap: .2rem; }
-    .coin-name { font-size: .8rem; }
-    .coin-price { font-size: .65rem; color: var(--muted); }
-    .signal-pill {
-      font-size: .6rem;
-      padding: .2rem .5rem;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.05);
+    .signal.buy{background:rgba(29,233,117,.18);}
+    .signal.sell{background:rgba(255,77,103,.22);}
+    .chart-wrap{
+      background:rgba(0,0,0,.25);
+      border:1px solid rgba(255,255,255,.02);
+      border-radius:16px;
+      padding:.7rem .7rem .3rem;
+      display:flex;
+      flex-direction:column;
+      gap:.7rem;
+      min-height:360px;
     }
-    .signal-buy { background: rgba(29,233,117,0.15); }
-    .signal-sell { background: rgba(255,77,103,0.15); }
-
-    .chart-panel {
-      background: rgba(0,0,0,0.3);
-      border: 1px solid rgba(255,255,255,0.02);
-      border-radius: 18px;
-      min-height: 360px;
-      display: flex;
-      flex-direction: column;
-      gap: .75rem;
-      padding: .75rem .75rem .25rem;
+    .chart-top{
+      display:flex;
+      align-items:center;
+      gap:.5rem;
     }
-    .chart-top {
-      display: flex;
-      align-items: center;
-      gap: .5rem;
+    .tf, .type, .modes{
+      margin-left:auto;
+      display:flex;
+      gap:.4rem;
     }
-    .chart-coin-name { font-weight: 600; }
-    .tf-group, .type-group, .mode-group {
-      margin-left: auto;
-      display: flex;
-      gap: .4rem;
+    .btn-sm{
+      background:rgba(255,255,255,.02);
+      border:1px solid transparent;
+      border-radius:999px;
+      font-size:.6rem;
+      padding:.22rem .55rem;
+      cursor:pointer;
+      color:#fff;
     }
-    .btn-sm {
-      background: rgba(255,255,255,0.02);
-      border: 1px solid rgba(255,255,255,0.03);
-      color: #fff;
-      border-radius: 999px;
-      font-size: .6rem;
-      padding: .2rem .5rem;
-      cursor: pointer;
+    .btn-sm.active{
+      background:rgba(0,188,212,.16);
+      border-color:rgba(0,188,212,.35);
     }
-    .btn-sm.active {
-      background: rgba(0,188,212,0.17);
-      border-color: rgba(0,188,212,0.38);
+    .chart-box{
+      flex:1;
+      background:radial-gradient(circle,rgba(0,188,212,.05),rgba(0,0,0,0));
+      border-radius:14px;
+      overflow:hidden;
+      position:relative;
+      min-height:220px;
     }
-    .chart-canvas-wrap {
-      flex: 1;
-      border-radius: 14px;
-      background: radial-gradient(circle, rgba(0,188,212,0.05), rgba(0,0,0,0));
-      position: relative;
-      overflow: hidden;
+    canvas{width:100%;height:100%;display:block;}
+    .info-row{
+      padding:0 1.6rem .8rem;
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:1rem;
     }
-    canvas { width: 100%; height: 100%; display: block; }
-
-    .info-row {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap: 1rem;
-      padding: 0 1.75rem .75rem;
+    .card{
+      background:rgba(0,0,0,.25);
+      border:1px solid rgba(255,255,255,.02);
+      border-radius:14px;
+      padding:.55rem .7rem .6rem;
     }
-    .info-card {
-      background: rgba(0,0,0,0.3);
-      border: 1px solid rgba(255,255,255,0.02);
-      border-radius: 16px;
-      padding: .55rem .75rem .55rem;
+    .card-label{font-size:.6rem;color:var(--muted);text-transform:uppercase;}
+    .card-val{margin-top:.3rem;font-size:.88rem;}
+    .card-val.green{color:var(--green);}
+    .trades{
+      padding:0 1.6rem .7rem;
     }
-    .info-label {
-      font-size: .6rem;
-      color: var(--muted);
-      text-transform: uppercase;
+    .trades-box{
+      background:rgba(0,0,0,.2);
+      border:1px solid rgba(255,255,255,.02);
+      border-radius:14px;
+      font-size:.68rem;
+      padding:.4rem .65rem .6rem;
     }
-    .info-value { margin-top: .35rem; font-size: .9rem; }
-    .info-value.green { color: var(--green); }
-    .info-value.red { color: var(--red); }
-
-    .trades-row { padding: 0 1.75rem .5rem; }
-    .trades-box {
-      background: rgba(0,0,0,0.25);
-      border: 1px solid rgba(255,255,255,0.02);
-      border-radius: 16px;
-      font-size: .7rem;
-      padding: .4rem .75rem .65rem;
+    .trade-line{display:flex;gap:.4rem;align-items:center;margin-bottom:.25rem;}
+    .pill{font-size:.55rem;padding:.1rem .4rem;border-radius:999px;}
+    .pill.paper{background:rgba(0,188,212,.12);}
+    .pill.real{background:rgba(255,172,44,.12);}
+    .pill.buy{background:rgba(29,233,117,.3);}
+    .pill.sell{background:rgba(255,77,103,.3);}
+    .footer{
+      padding:0 1.6rem 1.1rem;
     }
-    .trade-line { display:flex; gap:.35rem; align-items:center; margin-bottom:.25rem; }
-    .pill { font-size:.55rem; padding:.1rem .4rem; border-radius:999px; }
-    .pill.paper { background: rgba(0,188,212,0.15); }
-    .pill.real { background: rgba(255,169,52,0.15); }
-    .pill.buy { background: rgba(29,233,117,0.3); }
-    .pill.sell { background: rgba(255,77,103,0.3); }
-    .ts { color: var(--muted); }
-
-    .footer-row { padding: 0 1.75rem 1.3rem; }
-    .refresh-bar {
-      width: 100%;
-      height: 14px;
-      background: #fff;
-      border-radius: 999px;
+    .bar{
+      height:14px;
+      background:#fff;
+      border-radius:999px;
     }
-    .updated { font-size: .6rem; color: var(--muted); margin-top: .35rem; }
-
-    @media (max-width: 980px) {
-      .body-row { grid-template-columns: 1fr; }
-      .info-row { grid-template-columns: 1fr 1fr; }
+    .updated{font-size:.6rem;color:var(--muted);margin-top:.3rem;}
+    @media(max-width:980px){
+      .body{grid-template-columns:1fr;}
+      .info-row{grid-template-columns:1fr 1fr;}
     }
   </style>
 </head>
 <body>
-  <div class="app-shell">
+  <div class="app">
     <header>
       <div id="conn-dot" class="dot"></div>
       <div class="title">My Coinbase Bot</div>
-      <button id="reload-btn" class="refresh-btn">⟳</button>
+      <button id="refresh" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;">⟳</button>
     </header>
 
-    <div class="body-row">
-      <div class="coins-panel">
+    <div class="body">
+      <div class="coins">
         <input id="search" placeholder="search coin..." />
         <div id="coin-list"></div>
       </div>
-      <div class="chart-panel">
+      <div class="chart-wrap">
         <div class="chart-top">
           <div>
-            <div id="chart-coin" class="chart-coin-name">BTC-USD</div>
-            <div id="chart-price" style="font-size:.7rem;color:var(--muted)">$0</div>
+            <div id="coin-label" style="font-weight:600;">BTC-USD</div>
+            <div id="coin-price" style="font-size:.7rem;color:var(--muted);">$0</div>
           </div>
-          <div class="tf-group">
+          <div class="tf">
             <button class="btn-sm tf-btn active" data-tf="1D">1D</button>
             <button class="btn-sm tf-btn" data-tf="1W">1W</button>
             <button class="btn-sm tf-btn" data-tf="1M">1M</button>
             <button class="btn-sm tf-btn" data-tf="6M">6M</button>
             <button class="btn-sm tf-btn" data-tf="1Y">1Y</button>
           </div>
-          <div class="type-group">
+          <div class="type">
             <button class="btn-sm type-btn active" data-type="line">Line</button>
             <button class="btn-sm type-btn" data-type="candles">Candles</button>
           </div>
-          <div class="mode-group">
-            <button id="paper-btn" class="btn-sm active">Paper</button>
-            <button id="real-btn" class="btn-sm">Real auto: OFF</button>
+          <div class="modes">
+            <button id="paper-toggle" class="btn-sm active">Paper</button>
+            <button id="real-toggle" class="btn-sm">Real auto: OFF</button>
           </div>
         </div>
-        <div class="chart-canvas-wrap">
-          <canvas id="chart-canvas"></canvas>
+        <div class="chart-box">
+          <canvas id="chart"></canvas>
         </div>
       </div>
     </div>
 
-    <div id="paper-section" class="info-row">
-      <div class="info-card">
-        <div class="info-label">paper balance (USD)</div>
-        <div style="display:flex;gap:.4rem;align-items:center;margin-top:.25rem;">
-          <input id="paper-balance-input" value="1000" style="width:80px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:.25rem .35rem;color:#fff;font-size:.7rem;outline:none;">
-          <button id="paper-balance-set" class="btn-sm">set</button>
+    <div id="paper-row" class="info-row">
+      <div class="card">
+        <div class="card-label">paper balance (USD)</div>
+        <div style="display:flex;gap:.45rem;align-items:center;margin-top:.25rem;">
+          <input id="paper-balance" value="1000" style="width:80px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.03);border-radius:8px;padding:.2rem .3rem;color:#fff;font-size:.7rem;outline:none;">
+          <button id="paper-set" class="btn-sm">set</button>
         </div>
       </div>
-      <div class="info-card">
-        <div class="info-label">equity now</div>
-        <div id="equity-now" class="info-value">$0.00</div>
+      <div class="card">
+        <div class="card-label">equity now</div>
+        <div id="equity" class="card-val">$0.00</div>
       </div>
-      <div class="info-card">
-        <div class="info-label">money earned</div>
-        <div id="money-earned" class="info-value green">+0.00</div>
+      <div class="card">
+        <div class="card-label">money earned</div>
+        <div id="earned" class="card-val green">+0.00</div>
       </div>
-      <div class="info-card">
-        <div class="info-label">% gained</div>
-        <div id="percent-gained" class="info-value green">+0.00%</div>
-        <button id="paper-auto-toggle" class="btn-sm" style="margin-top:.35rem;">paper auto: OFF</button>
+      <div class="card">
+        <div class="card-label">% gained</div>
+        <div id="percent" class="card-val green">+0.00%</div>
+        <button id="paper-auto" class="btn-sm" style="margin-top:.35rem;">paper auto: OFF</button>
       </div>
     </div>
 
-    <div id="trades-row" class="trades-row">
+    <div class="trades">
       <div id="trades-box" class="trades-box">no trades yet</div>
     </div>
 
-    <div class="footer-row">
-      <div class="refresh-bar" id="refresh-bar"></div>
+    <div class="footer">
+      <div class="bar"></div>
       <div id="updated" class="updated">updated --:--</div>
     </div>
   </div>
 
   <script>
     const API = "";
+    const chart = document.getElementById("chart");
+    const ctx = chart.getContext("2d");
     let CURRENT = {
-      state: null,
       tf: "1D",
-      chartType: "line",
+      type: "line",
       selected: "BTC-USD",
+      state: null,
     };
 
-    const coinListEl = document.getElementById("coin-list");
-    const chartCoinEl = document.getElementById("chart-coin");
-    const chartPriceEl = document.getElementById("chart-price");
-    const chartCanvas = document.getElementById("chart-canvas");
-    const updatedEl = document.getElementById("updated");
-    const paperSection = document.getElementById("paper-section");
-    const tradesRow = document.getElementById("trades-row");
-    const paperBalanceInput = document.getElementById("paper-balance-input");
-    const equityNowEl = document.getElementById("equity-now");
-    const moneyEarnedEl = document.getElementById("money-earned");
-    const percentGainedEl = document.getElementById("percent-gained");
-    const tradesBox = document.getElementById("trades-box");
-    const paperAutoBtn = document.getElementById("paper-auto-toggle");
-    const paperBtn = document.getElementById("paper-btn");
-    const realBtn = document.getElementById("real-btn");
-    const ctx = chartCanvas.getContext("2d");
-
-    async function fetchState() {
-      const res = await fetch(API + "/state");
-      const data = await res.json();
-      CURRENT.state = data;
-      CURRENT.selected = data.selected || CURRENT.selected;
+    async function loadState(){
+      const r = await fetch(API + "/state");
+      const st = await r.json();
+      CURRENT.state = st;
       renderState();
-      fetchHistory(CURRENT.selected, CURRENT.tf);
+      await loadHistory(CURRENT.selected, CURRENT.tf);
     }
 
-    async function fetchHistory(symbol, tf) {
-      const res = await fetch(API + `/history/${encodeURIComponent(symbol)}?tf=${tf}`);
-      const data = await res.json();
+    async function loadHistory(symbol, tf){
+      const r = await fetch(API + `/history/${encodeURIComponent(symbol)}?tf=${tf}`);
+      const data = await r.json();
       drawChart(data.points || []);
     }
 
-    function renderState() {
+    function renderState(){
       const st = CURRENT.state;
-      const dot = document.getElementById("conn-dot");
-      if (st.connected) dot.classList.add("online"); else dot.classList.remove("online");
+      document.getElementById("conn-dot").classList.toggle("online", !!st.connected);
 
-      coinListEl.innerHTML = "";
-      (st.coins || []).forEach(c => {
-        const item = document.createElement("div");
-        item.className = "coin-item" + (c.symbol === st.selected ? " active" : "");
-        item.dataset.symbol = c.symbol;
-        item.innerHTML = `
-          <div class="coin-left">
+      // coins
+      const list = document.getElementById("coin-list");
+      list.innerHTML = "";
+      (st.coins || []).forEach(c=>{
+        const el = document.createElement("div");
+        el.className = "coin" + (c.symbol === st.selected ? " active" : "");
+        el.dataset.symbol = c.symbol;
+        el.innerHTML = `
+          <div>
             <div class="coin-name">${c.symbol}</div>
-            <div class="coin-price">$${Number(c.price || 0).toLocaleString()}</div>
+            <div class="coin-price">$${Number(c.price||0).toLocaleString()}</div>
           </div>
-          <div class="signal-pill ${c.signal === "BUY" ? "signal-buy" : c.signal === "SELL" ? "signal-sell" : ""}">
-            ${c.signal || "HOLD"} · ${c.conf || 50}%
+          <div class="signal ${c.signal==="BUY"?"buy":c.signal==="SELL"?"sell":""}">
+            ${c.signal||"HOLD"} · ${c.conf||50}%
           </div>
         `;
-        item.addEventListener("click", () => selectCoin(c.symbol));
-        coinListEl.appendChild(item);
+        el.addEventListener("click", ()=>selectCoin(c.symbol));
+        list.appendChild(el);
       });
 
-      chartCoinEl.textContent = st.selected;
-      const coin = (st.coins || []).find(c => c.symbol === st.selected);
-      chartPriceEl.textContent = coin ? "$" + Number(coin.price || 0).toLocaleString() : "$0";
+      document.getElementById("coin-label").textContent = st.selected;
+      const coin = (st.coins || []).find(c=>c.symbol===st.selected);
+      document.getElementById("coin-price").textContent = coin ? "$" + Number(coin.price||0).toLocaleString() : "$0";
 
-      // paper section show/hide
-      if (st.paper_enabled) {
-        paperSection.classList.remove("hidden");
-        tradesRow.classList.remove("hidden");
-      } else {
-        paperSection.classList.add("hidden");
-        tradesRow.classList.add("hidden");
-      }
-
-      paperBalanceInput.value = st.paper_balance ?? 1000;
-      equityNowEl.textContent = "$" + (st.paper_equity ?? 0).toFixed(2);
+      // paper
+      document.getElementById("paper-row").style.display = st.paper_enabled ? "grid" : "none";
+      document.getElementById("paper-balance").value = st.paper_balance ?? 1000;
+      document.getElementById("equity").textContent = "$" + (st.paper_equity ?? 0).toFixed(2);
       const pl = st.paper_pl ?? 0;
-      moneyEarnedEl.textContent = (pl >= 0 ? "+" : "-") + "$" + Math.abs(pl).toFixed(2);
-      moneyEarnedEl.className = "info-value " + (pl >= 0 ? "green" : "red");
       const pct = st.paper_balance ? (pl / st.paper_balance) * 100 : 0;
-      percentGainedEl.textContent = (pct >= 0 ? "+" : "-") + Math.abs(pct).toFixed(2) + "%";
-      percentGainedEl.className = "info-value " + (pct >= 0 ? "green" : "red");
+      const earnedEl = document.getElementById("earned");
+      const pctEl = document.getElementById("percent");
+      earnedEl.textContent = (pl >= 0 ? "+" : "-") + "$" + Math.abs(pl).toFixed(2);
+      earnedEl.className = "card-val " + (pl >= 0 ? "green" : "red");
+      pctEl.textContent = (pct >= 0 ? "+" : "-") + Math.abs(pct).toFixed(2) + "%";
+      pctEl.className = "card-val " + (pct >= 0 ? "green" : "red");
+      document.getElementById("paper-auto").textContent = "paper auto: " + (st.paper_auto ? "ON" : "OFF");
+      document.getElementById("paper-toggle").classList.toggle("active", st.paper_enabled);
 
-      paperAutoBtn.textContent = "paper auto: " + (st.paper_auto ? "ON" : "OFF");
-      realBtn.textContent = "Real auto: " + (st.real_auto ? "ON" : "OFF");
+      // real
+      document.getElementById("real-toggle").textContent = "Real auto: " + (st.real_auto ? "ON" : "OFF");
 
-      // trades  (paper + real)
-      const paperTrades = st.paper_trades || [];
-      const realTrades = st.real_trades || [];
+      // trades
+      const tradesBox = document.getElementById("trades-box");
       let html = "";
-      if (paperTrades.length) {
-        html += `<div style="font-weight:600;margin-bottom:.25rem;">PAPER TRADES (last)</div>`;
-        paperTrades.forEach(t => {
+      if ((st.paper_trades||[]).length){
+        html += `<div style="font-weight:600;margin-bottom:.25rem;">PAPER TRADES</div>`;
+        (st.paper_trades||[]).forEach(t=>{
           html += `<div class="trade-line">
             <span class="pill paper">PAPER</span>
-            <span class="pill ${t.side === "BUY" ? "buy" : "sell"}">${t.side}</span>
+            <span class="pill ${t.side==="BUY"?"buy":"sell"}">${t.side}</span>
             <b>${t.symbol}</b>
-            <span>${Number(t.qty || 0).toFixed(4)}</span>
-            <span>@ $${Number(t.price || 0).toFixed(2)}</span>
-            <span class="ts">${fmtTime(t.at)}</span>
+            <span>${Number(t.qty||0).toFixed(4)}</span>
+            <span>@ $${Number(t.price||0).toFixed(2)}</span>
+            <span style="color:var(--muted)">${new Date(t.at).toLocaleTimeString()}</span>
           </div>`;
         });
       }
-      if (realTrades.length) {
-        html += `<div style="font-weight:600;margin:.4rem 0 .25rem;">REAL TRADES (last)</div>`;
-        realTrades.forEach(t => {
+      if ((st.real_trades||[]).length){
+        html += `<div style="font-weight:600;margin:.35rem 0 .25rem;">REAL TRADES</div>`;
+        (st.real_trades||[]).forEach(t=>{
           html += `<div class="trade-line">
             <span class="pill real">REAL</span>
-            <span class="pill ${t.side === "BUY" ? "buy" : "sell"}">${t.side}</span>
+            <span class="pill ${t.side==="BUY"?"buy":"sell"}">${t.side}</span>
             <b>${t.symbol}</b>
-            <span>${Number(t.qty || 0).toFixed(4)}</span>
-            <span>@ $${Number(t.price || 0).toFixed(2)}</span>
-            <span class="ts">${fmtTime(t.at)}</span>
+            <span>${Number(t.qty||0).toFixed(4)}</span>
+            <span>@ $${Number(t.price||0).toFixed(2)}</span>
+            <span style="color:var(--muted)">${new Date(t.at).toLocaleTimeString()}</span>
           </div>`;
         });
       }
       tradesBox.innerHTML = html || "no trades yet";
 
-      updatedEl.textContent = "updated " + (st.last_update ? new Date(st.last_update).toLocaleTimeString() : "--:--");
+      // updated
+      document.getElementById("updated").textContent = "updated " + (st.last_update ? new Date(st.last_update).toLocaleTimeString() : "--:--");
     }
 
-    async function selectCoin(symbol) {
-      CURRENT.selected = symbol;
-      await fetch(API + "/select", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({symbol})
-      });
-      await fetchState();
-    }
-
-    function drawChart(points) {
-      const w = chartCanvas.clientWidth || 500;
-      const h = chartCanvas.clientHeight || 220;
-      chartCanvas.width = w * 2;
-      chartCanvas.height = h * 2;
-      const dpr = 2;
+    function drawChart(points){
+      const w = chart.clientWidth || 500;
+      const h = chart.clientHeight || 220;
+      const dpr = window.devicePixelRatio || 1;
+      chart.width = w * dpr;
+      chart.height = h * dpr;
       ctx.setTransform(dpr,0,0,dpr,0,0);
       ctx.clearRect(0,0,w,h);
       if (!points.length) return;
-      const max = Math.max(...points.map(p => p.c));
-      const min = Math.min(...points.map(p => p.c));
-      const padX = 16, padY = 12;
+
+      let max = Math.max(...points.map(p=>p.c));
+      let min = Math.min(...points.map(p=>p.c));
+      // add bottom padding so it doesn't touch
+      const padFactor = (max - min) * 0.08;
+      max += padFactor;
+      min -= padFactor;
+
+      const padX = 16, padY = 10;
       const usableW = w - padX*2;
       const usableH = h - padY*2;
-      ctx.beginPath();
+
       ctx.lineWidth = 2;
       ctx.strokeStyle = "#38eaff";
-      points.forEach((p,i) => {
+      ctx.beginPath();
+      points.forEach((p,i)=>{
         const x = padX + (i / Math.max(points.length-1,1)) * usableW;
-        const y = padY + (1 - (p.c - min) / Math.max((max-min), 0.0001)) * usableH;
+        const y = padY + (1 - (p.c - min)/(max-min)) * usableH;
         if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
       });
       ctx.stroke();
     }
 
-    function fmtTime(t){
-      if(!t) return "";
-      return new Date(t).toLocaleTimeString();
+    async function selectCoin(symbol){
+      CURRENT.selected = symbol;
+      await fetch(API + "/select", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({symbol})
+      });
+      await loadState();
     }
 
-    // events
-    document.getElementById("reload-btn").addEventListener("click", fetchState);
-    document.getElementById("paper-balance-set").addEventListener("click", async () => {
-      const v = Number(paperBalanceInput.value || 0);
+    document.getElementById("refresh").addEventListener("click", loadState);
+    document.getElementById("paper-set").addEventListener("click", async ()=>{
+      const v = Number(document.getElementById("paper-balance").value||0);
       await fetch(API + "/paper/balance", {
         method:"POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({balance: v})
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({balance:v})
       });
-      fetchState();
+      loadState();
     });
-    paperAutoBtn.addEventListener("click", async () => {
+    document.getElementById("paper-auto").addEventListener("click", async ()=>{
       const on = !(CURRENT.state && CURRENT.state.paper_auto);
       await fetch(API + "/paper/toggle", {
         method:"POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({on})
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({on})
       });
-      fetchState();
+      loadState();
     });
-    paperBtn.addEventListener("click", async () => {
+    document.getElementById("paper-toggle").addEventListener("click", async ()=>{
       const enabled = !(CURRENT.state && CURRENT.state.paper_enabled);
       await fetch(API + "/paper/enable", {
         method:"POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({enabled})
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({enabled})
       });
-      fetchState();
+      loadState();
     });
-    realBtn.addEventListener("click", async () => {
+    document.getElementById("real-toggle").addEventListener("click", async ()=>{
       const on = !(CURRENT.state && CURRENT.state.real_auto);
       await fetch(API + "/real/toggle", {
         method:"POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({on})
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({on})
       });
-      fetchState();
+      loadState();
     });
-    document.querySelectorAll(".tf-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".tf-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tf-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        document.querySelectorAll(".tf-btn").forEach(b=>b.classList.remove("active"));
         btn.classList.add("active");
         CURRENT.tf = btn.dataset.tf;
-        fetchHistory(CURRENT.selected, CURRENT.tf);
+        loadHistory(CURRENT.selected, CURRENT.tf);
       });
     });
 
-    fetchState();
+    loadState();
   </script>
 </body>
 </html>
