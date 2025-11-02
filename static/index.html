@@ -1,825 +1,608 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>My Coinbase Bot</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <style>
-      :root {
-        --bg: #000;
-        --card: #101010;
-        --card2: #151515;
-        --accent: #ffffff;
-        --muted: rgba(255, 255, 255, 0.05);
-        --line: #3eddd4;
-        --green: #10d46b;
-        --red: #f7666b;
-        --warning: #ffb347;
-      }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        background: var(--bg);
-        color: #fff;
-        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-        min-height: 100vh;
-        display: flex;
-        justify-content: center;
-        padding: 1.6rem 1rem 4rem;
-      }
-      .app-shell {
-        width: min(1180px, 100%);
-        background: var(--card);
-        border-radius: 18px;
-        overflow: hidden;
-        border: 1px solid rgba(255, 255, 255, 0.03);
-        box-shadow: 0 0 60px rgba(0, 0, 0, 0.35);
-        display: flex;
-        flex-direction: column;
-        gap: 0;
-      }
-      .top-bar {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 1.1rem 1.6rem 0.5rem;
-      }
-      .status-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 999px;
-        background: #06c167;
-        margin-right: 0.35rem;
-      }
-      .title {
-        font-size: 1.05rem;
-        font-weight: 600;
-        display: flex;
-        align-items: center;
-      }
-      .main-row {
-        display: flex;
-        gap: 0.75rem;
-        padding: 0.5rem 1.35rem 0.8rem;
-        min-height: 460px;
-      }
-      .coin-list {
-        width: 200px;
-        background: radial-gradient(circle at top, #131313 0%, #0e0e0e 65%);
-        border: 1px solid rgba(255, 255, 255, 0.01);
-        border-radius: 14px;
-        padding: 0.7rem 0.5rem 0.4rem;
-        display: flex;
-        flex-direction: column;
-        gap: 0.45rem;
-      }
-      .search-box {
-        background: #0a0a0a;
-        border: 1px solid rgba(255, 255, 255, 0.02);
-        border-radius: 999px;
-        height: 32px;
-        display: flex;
-        align-items: center;
-        padding: 0 0.7rem;
-        font-size: 0.67rem;
-        color: #979797;
-      }
-      .coins-scroll {
-        overflow-y: auto;
-        flex: 1;
-        padding-right: 0.3rem;
-        margin-top: 0.35rem;
-      }
-      .coin-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background: rgba(255, 255, 255, 0);
-        border-radius: 10px;
-        padding: 0.5rem 0.45rem 0.5rem 0.55rem;
-        gap: 0.35rem;
-        cursor: pointer;
-      }
-      .coin-row small {
-        display: block;
-        opacity: 0.45;
-        font-size: 0.57rem;
-      }
-      .coin-row.active {
-        background: rgba(255, 255, 255, 0.05);
-        outline: 1px solid rgba(255, 255, 255, 0.03);
-      }
-      .signal-pill {
-        font-size: 0.5rem;
-        padding: 0.15rem 0.4rem 0.2rem;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.025);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        display: flex;
-        gap: 0.25rem;
-        align-items: center;
-      }
-      .signal-pill.buy {
-        background: rgba(16, 212, 107, 0.12);
-        border-color: rgba(16, 212, 107, 0.2);
-      }
-      .signal-pill.sell {
-        background: rgba(247, 102, 107, 0.12);
-        border-color: rgba(247, 102, 107, 0.2);
-      }
-      .chart-card {
-        flex: 1;
-        background: #0f0f0f;
-        border-radius: 14px;
-        border: 1px solid rgba(255, 255, 255, 0.01);
-        display: flex;
-        flex-direction: column;
-        padding: 0.7rem 0.7rem 0.3rem;
-      }
-      .chart-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.3rem 0.35rem 0.5rem;
-      }
-      .asset-info {
-        display: flex;
-        flex-direction: column;
-        gap: 0.15rem;
-      }
-      .asset-name {
-        font-size: 0.7rem;
-        font-weight: 600;
-      }
-      .asset-price {
-        font-size: 0.6rem;
-        opacity: 0.65;
-      }
-      .timeframe-tabs,
-      .chart-type-tabs {
-        display: flex;
-        gap: 0.25rem;
-      }
-      .tab-btn {
-        border: none;
-        background: rgba(255, 255, 255, 0.025);
-        color: #fff;
-        padding: 0.25rem 0.5rem 0.35rem;
-        border-radius: 999px;
-        font-size: 0.55rem;
-        cursor: pointer;
-      }
-      .tab-btn.active {
-        background: rgba(255, 255, 255, 0.1);
-        font-weight: 600;
-      }
-      .chart-body {
-        flex: 1;
-        min-height: 260px;
-        border-radius: 10px;
-        background: radial-gradient(circle at center, #0a0a0a 0%, #0d0d0d 55%, #0f0f0f 100%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        position: relative;
-        overflow: hidden;
-      }
-      canvas {
-        width: 100%;
-        height: 100%;
-      }
-      .fallback-tag {
-        position: absolute;
-        bottom: 0.25rem;
-        right: 0.4rem;
-        background: rgba(247, 102, 107, 0.1);
-        color: #f7666b;
-        border: 1px solid rgba(247, 102, 107, 0.4);
-        font-size: 0.5rem;
-        border-radius: 999px;
-        padding: 0.2rem 0.45rem 0.3rem;
-      }
-      .live-tag {
-        position: absolute;
-        bottom: 0.25rem;
-        right: 0.4rem;
-        background: rgba(16, 212, 107, 0.1);
-        color: #10d46b;
-        border: 1px solid rgba(16, 212, 107, 0.4);
-        font-size: 0.5rem;
-        border-radius: 999px;
-        padding: 0.2rem 0.45rem 0.3rem;
-      }
-      .paper-panel {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(120px, 1fr));
-        gap: 0.6rem;
-        padding: 0.4rem 1.35rem 0.6rem;
-        background: rgba(0, 0, 0, 0);
-        transition: opacity 0.15s ease;
-      }
-      .paper-panel.hidden {
-        display: none;
-      }
-      .paper-box {
-        background: rgba(255, 255, 255, 0.02);
-        border: 1px solid rgba(255, 255, 255, 0.025);
-        border-radius: 12px;
-        padding: 0.45rem 0.6rem 0.5rem;
-      }
-      .paper-box label {
-        font-size: 0.6rem;
-        opacity: 0.6;
-        display: block;
-        margin-bottom: 0.2rem;
-      }
-      .paper-value {
-        font-size: 0.7rem;
-        font-weight: 600;
-      }
-      .paper-input-wrap {
-        display: flex;
-        gap: 0.25rem;
-        align-items: center;
-      }
-      .paper-input {
-        background: #0a0a0a;
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 999px;
-        padding: 0.25rem 0.35rem;
-        color: #fff;
-        font-size: 0.6rem;
-        width: 70px;
-      }
-      .paper-set-btn {
-        background: #fff;
-        border: none;
-        color: #000;
-        border-radius: 999px;
-        padding: 0.25rem 0.55rem 0.35rem;
-        font-size: 0.6rem;
-        cursor: pointer;
-      }
-      .paper-pl.pos {
-        color: var(--green);
-      }
-      .paper-pl.neg {
-        color: var(--red);
-      }
-      .paper-log {
-        grid-column: 1 / -1;
-        background: rgba(255, 255, 255, 0.015);
-        border: 1px solid rgba(255, 255, 255, 0.02);
-        border-radius: 10px;
-        padding: 0.45rem 0.65rem 0.35rem;
-        max-height: 72px;
-        overflow-y: auto;
-      }
-      .paper-log-title {
-        font-size: 0.56rem;
-        opacity: 0.6;
-        margin-bottom: 0.25rem;
-      }
-      .paper-log-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-        display: flex;
-        gap: 0.3rem;
-        flex-wrap: wrap;
-      }
-      .paper-log-item {
-        background: rgba(0, 0, 0, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.04);
-        border-radius: 999px;
-        font-size: 0.53rem;
-        padding: 0.15rem 0.6rem 0.2rem;
-        white-space: nowrap;
-      }
-      .paper-log-item.buy {
-        border-color: rgba(16, 212, 107, 0.5);
-      }
-      .paper-log-item.sell {
-        border-color: rgba(247, 102, 107, 0.5);
-      }
-      .refresh-bar {
-        width: 100%;
-        margin-top: 0.4rem;
-        padding: 0.35rem 1.35rem 0.7rem;
-      }
-      .refresh-btn {
-        width: 100%;
-        background: #fff;
-        border: none;
-        height: 12px;
-        border-radius: 999px;
-        cursor: pointer;
-        position: relative;
-      }
-      .updated-label {
-        font-size: 0.5rem;
-        opacity: 0.5;
-        margin-top: 0.25rem;
-      }
-      .toggle-btn {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 999px;
-        font-size: 0.55rem;
-        padding: 0.15rem 0.4rem 0.25rem;
-        cursor: pointer;
-      }
-      .toggle-btn.on {
-        background: rgba(16, 212, 107, 0.15);
-        border-color: rgba(16, 212, 107, 0.65);
-      }
-      @media (max-width: 1050px) {
-        .main-row {
-          flex-direction: column;
-        }
-        .coin-list {
-          width: 100%;
-          flex-direction: row;
-          overflow-x: auto;
-          height: 70px;
-        }
-        .coins-scroll {
-          display: flex;
-          gap: 0.35rem;
-          overflow-x: auto;
-        }
-        .chart-card {
-          min-height: 240px;
-        }
-        .paper-panel {
-          grid-template-columns: repeat(2, minmax(120px, 1fr));
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="app-shell">
-      <div class="top-bar">
-        <div class="title">
-          <span class="status-dot" id="status-dot"></span>
-          My Coinbase Bot
-        </div>
+<head>
+  <meta charset="UTF-8" />
+  <title>My Coinbase Bot</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #000;
+      --card: #101010;
+      --card2: #151515;
+      --muted: rgba(255, 255, 255, 0.3);
+      --line: #45d2c8;
+      --green: #11d881;
+      --red: #ff6b6b;
+      --outline: rgba(255, 255, 255, 0.04);
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: #fff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 1.5rem 1rem 4rem;
+    }
+    .app-shell {
+      width: min(1200px, 100%);
+      background: var(--card);
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      box-shadow: 0 0 45px rgba(0, 0, 0, 0.4);
+      overflow: hidden;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 1.25rem 1.25rem 0.5rem;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 9999px;
+      background: #f43f5e;
+    }
+    .status-dot.online {
+      background: #22c55e;
+    }
+    .title {
+      font-weight: 600;
+      font-size: 1.05rem;
+    }
+    .main-row {
+      display: flex;
+      gap: 1.25rem;
+      padding: 0 1.25rem 0.75rem;
+      margin-top: 0.75rem;
+    }
+    .coin-list {
+      width: 210px;
+      background: rgba(255, 255, 255, 0.01);
+      border: 1px solid rgba(255, 255, 255, 0.02);
+      border-radius: 14px;
+      padding: 0.75rem 0.5rem 0.75rem 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .coin-search {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 9999px;
+      padding: 0.3rem 0.7rem;
+      font-size: 0.7rem;
+      color: #fff;
+      outline: none;
+    }
+    .coin-scroll {
+      overflow-y: auto;
+      max-height: 370px;
+      padding-right: 0.4rem;
+    }
+    .coin-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.25rem;
+      padding: 0.4rem 0.4rem 0.4rem 0.6rem;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: 0.12s ease-out;
+    }
+    .coin-item.active {
+      background: rgba(69, 210, 200, 0.16);
+      border: 1px solid rgba(69, 210, 200, 0.32);
+    }
+    .coin-left {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .coin-symbol {
+      font-size: 0.68rem;
+    }
+    .coin-price {
+      font-size: 0.62rem;
+      color: rgba(255, 255, 255, 0.45);
+    }
+    .coin-signal {
+      font-size: 0.55rem;
+      padding: 2px 6px 2px 6px;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      text-transform: uppercase;
+    }
+    .coin-signal.buy {
+      background: rgba(17, 216, 129, 0.18);
+      border-color: rgba(17, 216, 129, 0.35);
+    }
+    .coin-signal.sell {
+      background: rgba(255, 107, 107, 0.14);
+      border-color: rgba(255, 107, 107, 0.3);
+    }
+    .chart-card {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.01);
+      border: 1px solid rgba(255, 255, 255, 0.02);
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      min-height: 340px;
+      overflow: hidden;
+    }
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.8rem 1rem 0.35rem;
+      gap: 1rem;
+    }
+    .chart-left {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .chart-symbol {
+      font-weight: 600;
+      font-size: 0.75rem;
+    }
+    .chart-price {
+      font-size: 0.7rem;
+      color: rgba(255, 255, 255, 0.4);
+    }
+    .chart-tabs,
+    .view-tabs {
+      display: flex;
+      gap: 0.35rem;
+    }
+    .chip {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      border-radius: 9999px;
+      padding: 3px 11px;
+      font-size: 0.6rem;
+      cursor: pointer;
+      transition: 0.12s;
+    }
+    .chip.active {
+      background: rgba(69, 210, 200, 0.15);
+      border: 1px solid rgba(69, 210, 200, 0.35);
+    }
+    /* THIS FIXES THE OVERFLOW */
+    .chart-body {
+      position: relative;
+      height: 260px;        /* fixed drawing area */
+      overflow: hidden;     /* clip the line/candles */
+      padding: 0 0.5rem 0.5rem;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* bottom panel */
+    .paper-panel {
+      display: flex;
+      gap: 0.75rem;
+      padding: 0.75rem 1.25rem 0.5rem;
+    }
+    .paper-box {
+      background: rgba(255, 255, 255, 0.01);
+      border: 1px solid rgba(255, 255, 255, 0.01);
+      border-radius: 12px;
+      padding: 0.4rem 0.65rem 0.55rem;
+      flex: 1;
+      min-height: 54px;
+    }
+    .paper-label {
+      font-size: 0.52rem;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.35);
+      letter-spacing: 0.04em;
+    }
+    .paper-value {
+      margin-top: 2px;
+      font-size: 0.78rem;
+    }
+    .btn-small {
+      background: #fff;
+      color: #000;
+      border: none;
+      border-radius: 9999px;
+      font-size: 0.55rem;
+      padding: 3px 10px;
+      cursor: pointer;
+    }
+    .paper-trades-log {
+      background: rgba(255, 255, 255, 0.01);
+      border: 1px solid rgba(255, 255, 255, 0.01);
+      border-radius: 12px;
+      padding: 0.4rem 0.65rem 0.35rem;
+      margin: 0 1.25rem 0.5rem;
+      min-height: 48px;
+      font-size: 0.6rem;
+      color: rgba(255, 255, 255, 0.5);
+    }
+    .paper-trade-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 2px;
+    }
+    .paper-side {
+      font-size: 0.53rem;
+      padding: 2px 6px;
+      border-radius: 9999px;
+    }
+    .paper-side.buy {
+      background: rgba(17, 216, 129, 0.12);
+      color: #fff;
+    }
+    .paper-side.sell {
+      background: rgba(255, 107, 107, 0.12);
+      color: #fff;
+    }
+    .refresh-bar {
+      display: block;
+      background: #fff;
+      height: 12px;
+      border-radius: 9999px;
+      margin: 0.3rem 1.25rem 0.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .refresh-text {
+      position: absolute;
+      inset: 0;
+      font-size: 0.6rem;
+      text-align: center;
+      line-height: 12px;
+      color: #000;
+      mix-blend-mode: multiply;
+    }
+    .foot {
+      font-size: 0.5rem;
+      color: rgba(255, 255, 255, 0.25);
+      padding: 0 1.25rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .mode-btn {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      border-radius: 9999px;
+      padding: 4px 12px;
+      font-size: 0.6rem;
+      cursor: pointer;
+      color: rgba(255, 255, 255, 0.7);
+    }
+    .mode-btn.active {
+      background: rgba(69, 210, 200, 0.18);
+      border-color: rgba(69, 210, 200, 0.35);
+      color: #fff;
+    }
+    @media (max-width: 1020px) {
+      .main-row { flex-direction: column; }
+      .coin-list { width: 100%; flex-direction: row; }
+      .coin-scroll { max-height: 170px; white-space: nowrap; display: flex; gap: 0.5rem; }
+      .chart-body { height: 230px; }
+      .paper-panel { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="topbar">
+      <div id="statusDot" class="status-dot"></div>
+      <div class="title">My Coinbase Bot</div>
+    </div>
+
+    <div class="main-row">
+      <div class="coin-list">
+        <input id="search" class="coin-search" placeholder="search coin..." />
+        <div id="coinList" class="coin-scroll"></div>
       </div>
-
-      <div class="main-row">
-        <div class="coin-list">
-          <div class="search-box">search coin...</div>
-          <div class="coins-scroll" id="coins-list">
-            <!-- coins injected here -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-left">
+            <div id="sym" class="chart-symbol">BTC-USD</div>
+            <div id="symPrice" class="chart-price">$0</div>
+          </div>
+          <div class="chart-tabs">
+            <div data-tf="1d" class="chip tf active">1D</div>
+            <div data-tf="1w" class="chip tf">1W</div>
+            <div data-tf="1m" class="chip tf">1M</div>
+            <div data-tf="6m" class="chip tf">6M</div>
+            <div data-tf="1y" class="chip tf">1Y</div>
+          </div>
+          <div class="view-tabs">
+            <div data-view="line" class="chip view active">Line</div>
+            <div data-view="candles" class="chip view">Candles</div>
+          </div>
+          <div class="view-tabs">
+            <div id="paperBtn" class="mode-btn active">Paper</div>
+            <div id="realBtn" class="mode-btn">Real auto: OFF</div>
           </div>
         </div>
-
-        <div class="chart-card">
-          <div class="chart-header">
-            <div class="asset-info">
-              <span class="asset-name" id="asset-name">BTC-USD</span>
-              <span class="asset-price" id="asset-price">$0</span>
-            </div>
-            <div class="timeframe-tabs" id="tf-tabs">
-              <button class="tab-btn active" data-tf="1D">1D</button>
-              <button class="tab-btn" data-tf="1W">1W</button>
-              <button class="tab-btn" data-tf="1M">1M</button>
-              <button class="tab-btn" data-tf="6M">6M</button>
-              <button class="tab-btn" data-tf="1Y">1Y</button>
-            </div>
-            <div class="chart-type-tabs" id="chart-type-tabs">
-              <button class="tab-btn active" data-type="line">Line</button>
-              <button class="tab-btn" data-type="candles">Candles</button>
-            </div>
-            <div class="chart-type-tabs" id="mode-tabs">
-              <!-- paper mode button (show/hide panel)  -->
-              <button class="tab-btn" id="paper-mode-btn">Paper</button>
-              <!-- real auto button -->
-              <button class="tab-btn" id="real-auto-btn">Real auto: OFF</button>
-            </div>
-          </div>
-
-          <div class="chart-body">
-            <canvas id="chart-canvas"></canvas>
-            <div class="fallback-tag" id="chart-tag" style="display: none">fallback data</div>
-          </div>
+        <div class="chart-body">
+          <canvas id="chart"></canvas>
         </div>
-      </div>
-
-      <!-- PAPER PANEL (stays between chart and refresh) -->
-      <div class="paper-panel" id="paper-panel">
-        <div class="paper-box">
-          <label for="paper-balance-input">paper balance (USD)</label>
-          <div class="paper-input-wrap">
-            <input id="paper-balance-input" class="paper-input" type="number" value="1000" />
-            <button class="paper-set-btn" id="paper-balance-set">set</button>
-          </div>
-        </div>
-        <div class="paper-box">
-          <label>equity now</label>
-          <div class="paper-value" id="paper-equity">$1,000.00</div>
-        </div>
-        <div class="paper-box">
-          <label>money earned</label>
-          <div class="paper-value paper-pl" id="paper-pl">$0.00</div>
-        </div>
-        <div class="paper-box">
-          <label>% gained</label>
-          <div class="paper-value paper-pl" id="paper-pct">0.00%</div>
-          <button class="toggle-btn" id="paper-auto-btn" style="margin-top: 0.25rem">paper auto: OFF</button>
-        </div>
-        <div class="paper-log">
-          <div class="paper-log-title">paper trades (latest)</div>
-          <ul class="paper-log-list" id="paper-log-list">
-            <li class="paper-log-item">no paper trades yet</li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="refresh-bar">
-        <button class="refresh-btn" id="refresh-btn"></button>
-        <div class="updated-label" id="updated-label">updated --:--:--</div>
       </div>
     </div>
 
-    <script>
-      const API_BASE = window.location.origin;
-      const coinsListEl = document.getElementById("coins-list");
-      const assetNameEl = document.getElementById("asset-name");
-      const assetPriceEl = document.getElementById("asset-price");
-      const chartCanvas = document.getElementById("chart-canvas");
-      const ctx = chartCanvas.getContext("2d");
-      const tfTabs = document.getElementById("tf-tabs");
-      const ctTabs = document.getElementById("chart-type-tabs");
-      const refreshBtn = document.getElementById("refresh-btn");
-      const updatedLabel = document.getElementById("updated-label");
-      const chartTag = document.getElementById("chart-tag");
-      const paperPanel = document.getElementById("paper-panel");
-      const paperModeBtn = document.getElementById("paper-mode-btn");
-      const realAutoBtn = document.getElementById("real-auto-btn");
-      const paperBalanceInput = document.getElementById("paper-balance-input");
-      const paperBalanceSet = document.getElementById("paper-balance-set");
-      const paperEquity = document.getElementById("paper-equity");
-      const paperPL = document.getElementById("paper-pl");
-      const paperPct = document.getElementById("paper-pct");
-      const paperAutoBtn = document.getElementById("paper-auto-btn");
-      const paperLogList = document.getElementById("paper-log-list");
-      const statusDot = document.getElementById("status-dot");
+    <div id="paperPanel" class="paper-panel">
+      <div class="paper-box">
+        <div class="paper-label">paper balance (USD)</div>
+        <div style="display:flex;gap:0.3rem;align-items:center;margin-top:3px;">
+          <input id="paperBalanceInput" value="1000" style="width:70px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:6px;padding:2px 4px;color:#fff;font-size:0.6rem;" />
+          <button id="setPaperBalance" class="btn-small">set</button>
+        </div>
+      </div>
+      <div class="paper-box">
+        <div class="paper-label">equity now</div>
+        <div id="equityNow" class="paper-value">$1,000.00</div>
+      </div>
+      <div class="paper-box">
+        <div class="paper-label">money earned</div>
+        <div id="moneyEarned" class="paper-value" style="color:var(--green);">+$0.00</div>
+      </div>
+      <div class="paper-box">
+        <div class="paper-label">% gained</div>
+        <div id="pctGained" class="paper-value" style="color:var(--green);">0.00%</div>
+        <button id="paperAuto" class="mode-btn" style="margin-top:3px;">paper auto: OFF</button>
+      </div>
+    </div>
 
-      let appState = {
-        coins: [],
-        selected: "BTC-USD",
-        timeframe: "1D",
-        chartType: "line",
-        connected: false,
-        paperPanelVisible: true,
-        paperAuto: false,
-      };
+    <div id="paperTradesLog" class="paper-trades-log">no paper trades yet</div>
 
-      // -------- fetch helpers ----------
-      async function fetchState() {
-        try {
-          const r = await fetch(API_BASE + "/state");
-          if (!r.ok) throw new Error("state not ok");
-          const data = await r.json();
-          applyState(data);
-        } catch (err) {
-          console.warn("state error", err);
-          statusDot.style.background = "#ff4545";
-        }
+    <div class="refresh-bar">
+      <div class="refresh-text">Refresh</div>
+    </div>
+
+    <div class="foot">
+      <div id="lastUpdated">updated --:--:--</div>
+      <div style="font-size:0.55rem;color:rgba(255,255,255,.3);">live from Coinbase</div>
+    </div>
+  </div>
+
+  <script>
+    const chartCanvas = document.getElementById('chart');
+    const ctx = chartCanvas.getContext('2d');
+
+    let state = null;
+    let currentSymbol = 'BTC-USD';
+    let currentTF = '1d';
+    let currentView = 'line';
+
+    function resizeCanvas() {
+      const parent = chartCanvas.parentElement;
+      chartCanvas.width = parent.clientWidth;
+      chartCanvas.height = parent.clientHeight;
+    }
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      if (state) drawChart(lastPoints);
+    });
+
+    let lastPoints = [];
+
+    function drawChart(data) {
+      if (!data || !data.points) return;
+      lastPoints = data;
+      resizeCanvas();
+      const w = chartCanvas.width;
+      const h = chartCanvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const pts = data.points;
+      // padding so line NEVER goes under the border
+      const padL = 25, padR = 10, padT = 15, padB = 20;
+      const innerW = w - padL - padR;
+      const innerH = h - padT - padB;
+
+      // find min/max on CLOSE (index 4)
+      let min = Infinity, max = -Infinity;
+      pts.forEach(p => {
+        const v = p[4] ?? p[1] ?? p[0];
+        if (v < min) min = v;
+        if (v > max) max = v;
+      });
+      if (min === max) {
+        min -= 1; max += 1;
       }
 
-      async function fetchChart(symbol, tf) {
-        try {
-          const r = await fetch(API_BASE + `/chart/${symbol}?tf=${tf}`);
-          if (!r.ok) throw new Error("chart not ok");
-          const data = await r.json();
-          drawChart(data, appState.chartType);
-        } catch (err) {
-          console.warn("chart error", err);
-          drawFallback();
-        }
-      }
-
-      // -------- apply state ----------
-      function applyState(data) {
-        appState.connected = !!data.connected;
-        statusDot.style.background = appState.connected ? "#06c167" : "#ff4545";
-        if (Array.isArray(data.coins)) {
-          appState.coins = data.coins;
-          renderCoins();
-        }
-        if (data.selected) {
-          appState.selected = data.selected;
-          const maybe = appState.coins.find((c) => c.symbol === data.selected);
-          assetNameEl.textContent = data.selected;
-          assetPriceEl.textContent = maybe ? "$" + maybe.price : "$0";
-        }
-        // mode (off/paper/live)
-        if (data.mode === "paper") {
-          appState.paperPanelVisible = true;
-          paperModeBtn.classList.add("active");
-          paperPanel.classList.remove("hidden");
-        } else {
-          // off or live
-          appState.paperPanelVisible = false;
-          paperModeBtn.classList.remove("active");
-          paperPanel.classList.add("hidden");
-        }
-        // real auto
-        if (data.real_auto) {
-          realAutoBtn.textContent = "Real auto: ON";
-          realAutoBtn.classList.add("active");
-        } else {
-          realAutoBtn.textContent = "Real auto: OFF";
-          realAutoBtn.classList.remove("active");
-        }
-        // paper stats
-        if (typeof data.paper_balance === "number") {
-          paperBalanceInput.value = data.paper_balance;
-        }
-        if (typeof data.paper_equity === "number") {
-          paperEquity.textContent = formatUSD(data.paper_equity);
-        }
-        if (typeof data.paper_pl === "number") {
-          const pos = data.paper_pl >= 0;
-          paperPL.textContent = (pos ? "+" : "") + formatUSD(Math.abs(data.paper_pl));
-          paperPL.classList.toggle("pos", pos);
-          paperPL.classList.toggle("neg", !pos);
-        }
-        if (typeof data.paper_pct === "number") {
-          const pos = data.paper_pct >= 0;
-          paperPct.textContent = (pos ? "+" : "") + data.paper_pct.toFixed(2) + "%";
-          paperPct.classList.toggle("pos", pos);
-          paperPct.classList.toggle("neg", !pos);
-        }
-        if (Array.isArray(data.paper_trades)) {
-          renderPaperTrades(data.paper_trades);
-        } else {
-          renderPaperTrades([]);
-        }
-        updatedLabel.textContent = "updated " + new Date().toLocaleTimeString();
-        // after loading state, fetch chart
-        fetchChart(appState.selected, mapTF(appState.timeframe));
-      }
-
-      function renderCoins() {
-        coinsListEl.innerHTML = "";
-        appState.coins.forEach((c) => {
-          const row = document.createElement("div");
-          row.className = "coin-row" + (c.symbol === appState.selected ? " active" : "");
-          row.dataset.symbol = c.symbol;
-          row.innerHTML = `
-            <div>
-              ${c.symbol}
-              <small>$${c.price}</small>
-            </div>
-            <div class="signal-pill ${c.signal_class || ""}">
-              ${c.signal || "HOLD"}${c.confidence ? " · " + c.confidence + "%" : ""}
-            </div>
-          `;
-          row.addEventListener("click", () => {
-            appState.selected = c.symbol;
-            document.querySelectorAll(".coin-row").forEach((r) => r.classList.remove("active"));
-            row.classList.add("active");
-            assetNameEl.textContent = c.symbol;
-            assetPriceEl.textContent = "$" + c.price;
-            fetchChart(c.symbol, mapTF(appState.timeframe));
-          });
-          coinsListEl.appendChild(row);
-        });
-      }
-
-      function renderPaperTrades(trades) {
-        paperLogList.innerHTML = "";
-        if (!trades || trades.length === 0) {
-          const li = document.createElement("li");
-          li.className = "paper-log-item";
-          li.textContent = "no paper trades yet";
-          paperLogList.appendChild(li);
-          return;
-        }
-        trades.slice(0, 6).forEach((t) => {
-          const li = document.createElement("li");
-          li.className = "paper-log-item " + (t.side ? t.side.toLowerCase() : "");
-          const time = t.timestamp ? new Date(t.timestamp).toLocaleTimeString() : "";
-          li.textContent = `${t.side || "BUY"} ${t.symbol || ""} @ ${t.price || ""} ${time ? "· " + time : ""}`;
-          paperLogList.appendChild(li);
-        });
-      }
-
-      // -------- drawing ----------
-      function drawChart(data, type) {
-        const w = chartCanvas.width;
-        const h = chartCanvas.height;
-        ctx.clearRect(0, 0, w, h);
-        if (!data || !data.points || data.points.length === 0) {
-          drawFallback();
-          return;
-        }
-        chartTag.style.display = data.fallback ? "block" : "none";
-
-        const points = data.points;
-        const xs = points.map((p) => p[0]);
-        const ys = points.map((p) => p[1]);
-        const minY = Math.min(...ys);
-        const maxY = Math.max(...ys);
-        const padX = 12;
-        const padY = 12;
-
-        function xScale(i) {
-          if (points.length === 1) return w / 2;
-          return padX + (i / (points.length - 1)) * (w - padX * 2);
-        }
-        function yScale(v) {
-          if (maxY === minY) return h / 2;
-          return h - padY - ((v - minY) / (maxY - minY)) * (h - padY * 2);
-        }
-
-        if (type === "line") {
-          ctx.lineWidth = 2.3;
-          ctx.strokeStyle = "#3eddd4";
-          ctx.beginPath();
-          points.forEach((p, i) => {
-            const x = xScale(i);
-            const y = yScale(p[1]);
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-          });
-          ctx.stroke();
-        } else {
-          // candles
-          ctx.lineWidth = 1.3;
-          const barW = Math.max(4, (w - padX * 2) / points.length - 2);
-          points.forEach((p, i) => {
-            const [_, open, high, low, close] = p;
-            const x = xScale(i);
-            const isUp = close >= open;
-            const color = isUp ? "#3eddd4" : "#f7666b";
-            const yOpen = yScale(open);
-            const yClose = yScale(close);
-            const yHigh = yScale(high);
-            const yLow = yScale(low);
-            // wick
-            ctx.strokeStyle = color;
-            ctx.beginPath();
-            ctx.moveTo(x, yHigh);
-            ctx.lineTo(x, yLow);
-            ctx.stroke();
-            // body
-            ctx.fillStyle = color;
-            const top = Math.min(yOpen, yClose);
-            const bh = Math.abs(yClose - yOpen) || 2;
-            ctx.fillRect(x - barW / 2, top, barW, bh);
-          });
-        }
-      }
-
-      function drawFallback() {
-        const w = chartCanvas.width;
-        const h = chartCanvas.height;
-        ctx.clearRect(0, 0, w, h);
-        ctx.strokeStyle = "#3eddd4";
-        ctx.lineWidth = 1.7;
+      if (currentView === 'line') {
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#45d2c8';
         ctx.beginPath();
-        const cycles = 3;
-        for (let i = 0; i <= 150; i++) {
-          const x = (i / 150) * w;
-          const y = h / 2 + Math.sin((i / 150) * Math.PI * 2 * cycles) * (h / 3);
+        pts.forEach((p, i) => {
+          const v = p[4] ?? p[1];
+          const x = padL + (i / Math.max(pts.length - 1, 1)) * innerW;
+          const y = padT + (1 - (v - min) / (max - min)) * innerH;
           if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
-        }
+        });
         ctx.stroke();
-        chartTag.style.display = "block";
+      } else {
+        // candles
+        const barW = innerW / Math.max(pts.length, 1) * 0.6;
+        pts.forEach((p, i) => {
+          const [t, open, high, low, close] = p;
+          const x = padL + (i / Math.max(pts.length - 1, 1)) * innerW;
+          const toY = val => padT + (1 - (val - min) / (max - min)) * innerH;
+
+          const yHigh = toY(high);
+          const yLow = toY(low);
+          ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x, yHigh);
+          ctx.lineTo(x, yLow);
+          ctx.stroke();
+
+          const yOpen = toY(open);
+          const yClose = toY(close);
+          const isUp = close >= open;
+          ctx.fillStyle = isUp ? '#11d881' : '#ff6b6b';
+          ctx.fillRect(x - barW / 2, Math.min(yOpen, yClose), barW, Math.abs(yClose - yOpen) || 3);
+        });
+      }
+    }
+
+    async function fetchState() {
+      const res = await fetch('/state');
+      const data = await res.json();
+      state = data;
+      document.getElementById('statusDot').classList.toggle('online', !!data.connected);
+
+      // coins
+      const cl = document.getElementById('coinList');
+      cl.innerHTML = '';
+      data.coins.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'coin-item' + (c.symbol === data.selected ? ' active' : '');
+        div.onclick = () => {
+          currentSymbol = c.symbol;
+          loadChart();
+        };
+        const left = document.createElement('div');
+        left.className = 'coin-left';
+        left.innerHTML = `<div class="coin-symbol">${c.symbol}</div><div class="coin-price">$${c.price}</div>`;
+        const sig = document.createElement('div');
+        const s = (c.signal || 'HOLD').toLowerCase();
+        sig.className = 'coin-signal ' + (s === 'buy' ? 'buy' : s === 'sell' ? 'sell' : '');
+        sig.textContent = (c.signal || 'HOLD') + (c.confidence ? ' - ' + c.confidence + '%' : '');
+        div.appendChild(left);
+        div.appendChild(sig);
+        cl.appendChild(div);
+      });
+
+      currentSymbol = data.selected || data.coins[0]?.symbol || 'BTC-USD';
+      document.getElementById('sym').textContent = currentSymbol;
+      const sel = data.coins.find(c => c.symbol === currentSymbol);
+      document.getElementById('symPrice').textContent = sel ? '$' + sel.price : '$0';
+
+      // paper stuff
+      document.getElementById('paperBalanceInput').value = data.paper_balance ?? 1000;
+      document.getElementById('equityNow').textContent = '$' + (data.paper_equity ?? 0).toFixed(2);
+      const pl = data.paper_pl ?? 0;
+      const pct = data.paper_pct ?? 0;
+      const me = document.getElementById('moneyEarned');
+      me.textContent = (pl >= 0 ? '+' : '') + pl.toFixed(2);
+      me.style.color = pl >= 0 ? 'var(--green)' : 'var(--red)';
+      const pg = document.getElementById('pctGained');
+      pg.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+      pg.style.color = pct >= 0 ? 'var(--green)' : 'var(--red)';
+
+      // paper trades
+      const log = document.getElementById('paperTradesLog');
+      const trades = data.paper_trades || [];
+      if (!trades.length) {
+        log.textContent = 'no paper trades yet';
+      } else {
+        log.innerHTML = '';
+        trades.forEach(t => {
+          const row = document.createElement('div');
+          row.className = 'paper-trade-item';
+          row.innerHTML = `
+            <div><span class="paper-side ${t.side.toLowerCase()}">${t.side}</span> ${t.symbol}</div>
+            <div>$${t.price}</div>
+            <div style="opacity:.4;font-size:.52rem;">${t.timestamp}</div>
+          `;
+          log.appendChild(row);
+        });
       }
 
-      // -------- util ----------
-      function formatUSD(v) {
-        return "$" + v.toFixed(2);
-      }
-      function mapTF(tf) {
-        switch (tf) {
-          case "1D":
-            return "1d";
-          case "1W":
-            return "1w";
-          case "1M":
-            return "1m";
-          case "6M":
-            return "6m";
-          case "1Y":
-            return "1y";
-          default:
-            return "1d";
-        }
-      }
+      document.getElementById('lastUpdated').textContent =
+        'updated ' + new Date().toLocaleTimeString();
 
-      // -------- events ----------
-      tfTabs.addEventListener("click", (e) => {
-        const btn = e.target.closest(".tab-btn");
-        if (!btn) return;
-        tfTabs.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        appState.timeframe = btn.dataset.tf;
-        fetchChart(appState.selected, mapTF(appState.timeframe));
+      loadChart(false);
+    }
+
+    async function loadChart(showLoader = true) {
+      const res = await fetch(`/chart/${encodeURIComponent(currentSymbol)}?tf=${currentTF}`);
+      const data = await res.json();
+      drawChart(data);
+      document.getElementById('sym').textContent = currentSymbol;
+      const sel = state?.coins?.find(c => c.symbol === currentSymbol);
+      if (sel) document.getElementById('symPrice').textContent = '$' + sel.price;
+    }
+
+    document.getElementById('setPaperBalance').onclick = async () => {
+      const v = parseFloat(document.getElementById('paperBalanceInput').value || '0');
+      await fetch('/set_paper_balance', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({balance: v})
       });
-
-      ctTabs.addEventListener("click", (e) => {
-        const btn = e.target.closest(".tab-btn");
-        if (!btn) return;
-        ctTabs.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        appState.chartType = btn.dataset.type;
-        fetchChart(appState.selected, mapTF(appState.timeframe));
-      });
-
-      refreshBtn.addEventListener("click", () => {
-        fetchState();
-      });
-
-      paperModeBtn.addEventListener("click", async () => {
-        // toggle visibility on frontend
-        appState.paperPanelVisible = !appState.paperPanelVisible;
-        if (appState.paperPanelVisible) {
-          paperPanel.classList.remove("hidden");
-          paperModeBtn.classList.add("active");
-        } else {
-          paperPanel.classList.add("hidden");
-          paperModeBtn.classList.remove("active");
-        }
-        // tell backend
-        try {
-          await fetch(API_BASE + "/toggle_mode", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ mode: appState.paperPanelVisible ? "paper" : "off" }),
-          });
-        } catch (err) {
-          console.warn("toggle_mode failed", err);
-        }
-      });
-
-      realAutoBtn.addEventListener("click", async () => {
-        const turnOn = !realAutoBtn.classList.contains("active");
-        realAutoBtn.textContent = turnOn ? "Real auto: ON" : "Real auto: OFF";
-        realAutoBtn.classList.toggle("active", turnOn);
-        try {
-          await fetch(API_BASE + "/toggle_real_auto", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ enabled: turnOn }),
-          });
-        } catch (err) {
-          console.warn("real auto failed", err);
-        }
-      });
-
-      paperBalanceSet.addEventListener("click", async () => {
-        const val = Number(paperBalanceInput.value || 0);
-        try {
-          await fetch(API_BASE + "/set_paper_balance", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ balance: val }),
-          });
-          fetchState();
-        } catch (err) {
-          console.warn("set paper balance error", err);
-        }
-      });
-
-      paperAutoBtn.addEventListener("click", async () => {
-        appState.paperAuto = !appState.paperAuto;
-        paperAutoBtn.textContent = appState.paperAuto ? "paper auto: ON" : "paper auto: OFF";
-        paperAutoBtn.classList.toggle("on", appState.paperAuto);
-        try {
-          await fetch(API_BASE + "/toggle_paper_auto", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ enabled: appState.paperAuto }),
-          });
-        } catch (err) {
-          console.warn("paper auto toggle failed", err);
-        }
-      });
-
-      // initial
-      // make canvas high-res
-      function resizeCanvas() {
-        const rect = chartCanvas.getBoundingClientRect();
-        chartCanvas.width = rect.width * window.devicePixelRatio;
-        chartCanvas.height = 280 * window.devicePixelRatio;
-        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-      }
-      resizeCanvas();
-      window.addEventListener("resize", resizeCanvas);
-
       fetchState();
-      // keep polling for fresh prices every 15s
-      setInterval(fetchState, 15000);
-    </script>
-  </body>
+    };
+
+    document.getElementById('paperAuto').onclick = async () => {
+      const btn = document.getElementById('paperAuto');
+      const isOn = btn.textContent.includes('ON');
+      await fetch('/toggle_paper_auto', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled: !isOn})
+      });
+      btn.textContent = 'paper auto: ' + (!isOn ? 'ON' : 'OFF');
+      fetchState();
+    };
+
+    document.getElementById('paperBtn').onclick = async () => {
+      // show paper panel
+      document.getElementById('paperPanel').style.display = 'flex';
+      document.getElementById('paperTradesLog').style.display = 'block';
+      document.getElementById('paperBtn').classList.add('active');
+      await fetch('/toggle_mode', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({mode: 'paper'})
+      });
+    };
+
+    document.getElementById('realBtn').onclick = async () => {
+      const btn = document.getElementById('realBtn');
+      const isOff = btn.textContent.includes('OFF');
+      await fetch('/toggle_real_auto', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({enabled: isOff})
+      });
+      btn.textContent = 'Real auto: ' + (isOff ? 'ON' : 'OFF');
+    };
+
+    document.querySelectorAll('.tf').forEach(el => {
+      el.onclick = () => {
+        document.querySelectorAll('.tf').forEach(x => x.classList.remove('active'));
+        el.classList.add('active');
+        currentTF = el.dataset.tf;
+        loadChart();
+      };
+    });
+    document.querySelectorAll('.view').forEach(el => {
+      el.onclick = () => {
+        document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+        el.classList.add('active');
+        currentView = el.dataset.view;
+        drawChart(lastPoints);
+      };
+    });
+
+    // init
+    fetchState();
+    setInterval(fetchState, 10000);
+  </script>
+</body>
 </html>
