@@ -82,6 +82,10 @@
       align-items:center;
       border-radius:12px;
       cursor:pointer;
+      transition:background .1s;
+    }
+    .coin:hover{
+      background:rgba(255,255,255,.02);
     }
     .coin.active{
       background:rgba(0,188,212,.12);
@@ -152,7 +156,7 @@
     .pill.buy{background:rgba(29,233,117,.35);}
     .pill.sell{background:rgba(255,77,103,.35);}
     .footer{padding:0 1.5rem 1rem;}
-    .bar{height:14px;background:#fff;border-radius:999px;}
+    .bar{height:14px;background:#fff;border-radius:999px;cursor:pointer;}
     .updated{font-size:.6rem;color:var(--muted);margin-top:.3rem;}
     @media(max-width:980px){
       .body{grid-template-columns:1fr;}
@@ -204,7 +208,7 @@
     </div>
 
     <div class="footer">
-      <div class="bar"></div>
+      <div class="bar" id="reload-bar" title="reload"></div>
       <div id="updated" class="updated">updated --:--</div>
     </div>
   </div>
@@ -218,14 +222,19 @@
       type: "line",
       selected: "BTC-USD",
       state: null,
+      allCoins: [],
+      search: ""
     };
 
     async function loadState(){
       const r = await fetch(API + "/state");
       const st = await r.json();
       CURRENT.state = st;
+      CURRENT.selected = st.selected;
+      CURRENT.allCoins = st.coins || [];
       renderState();
-      await loadHistory(st.selected, CURRENT.tf);
+      // after state loads, always refresh chart for selected coin
+      await loadHistory(CURRENT.selected, CURRENT.tf);
     }
 
     async function loadHistory(symbol, tf){
@@ -238,10 +247,15 @@
       const st = CURRENT.state;
       document.getElementById("conn-dot").classList.toggle("online", !!st.connected);
 
-      // coins
+      // filter coins by search
+      const filter = (CURRENT.search || "").toUpperCase();
+      const coinsFiltered = (st.coins || []).filter(c =>
+        c.symbol.toUpperCase().includes(filter)
+      );
+
       const list = document.getElementById("coin-list");
       list.innerHTML = "";
-      (st.coins || []).forEach(c=>{
+      coinsFiltered.forEach(c=>{
         const el = document.createElement("div");
         el.className = "coin" + (c.symbol === st.selected ? " active" : "");
         el.innerHTML = `
@@ -259,7 +273,6 @@
       const coin = (st.coins || []).find(c=>c.symbol===st.selected);
       document.getElementById("coin-price").textContent = coin ? "$" + Number(coin.price||0).toLocaleString() : "$0";
 
-      // real auto
       document.getElementById("real-toggle").textContent = "Real auto: " + (st.real_auto ? "ON" : "OFF");
 
       // trades
@@ -322,12 +335,16 @@
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({symbol})
       });
+      // after selecting, reload state + chart
       await loadState();
     }
 
     document.getElementById("refresh").addEventListener("click", loadState);
+    document.getElementById("reload-bar").addEventListener("click", loadState);
+
     document.getElementById("real-toggle").addEventListener("click", async ()=>{
-      const on = !(CURRENT.state && CURRENT.state.real_auto);
+      const st = CURRENT.state || {};
+      const on = !st.real_auto;
       await fetch(API + "/real/toggle", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
@@ -335,6 +352,7 @@
       });
       loadState();
     });
+
     document.querySelectorAll(".tf-btn").forEach(btn=>{
       btn.addEventListener("click", ()=>{
         document.querySelectorAll(".tf-btn").forEach(b=>b.classList.remove("active"));
@@ -344,6 +362,12 @@
       });
     });
 
+    document.getElementById("search").addEventListener("input", (e)=>{
+      CURRENT.search = e.target.value || "";
+      renderState(); // re-render list only
+    });
+
+    // initial
     loadState();
   </script>
 </body>
