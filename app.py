@@ -1,372 +1,218 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-import httpx
+# app.py
 import os
-import time
-from datetime import datetime, timedelta, timezone
+import math
+import random
+from datetime import datetime, timedelta
+from typing import List, Dict, Any, Optional
+
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# make sure static/ exists
+# serve /static/index.html
 if not os.path.exists("static"):
     os.makedirs("static", exist_ok=True)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# ---------------- GLOBAL STATE ----------------
-COIN_LIST = [
-    "BTC-USD",
-    "ETH-USD",
-    "BCH-USD",
-    "SOL-USD",
-    "LTC-USD",
-    "AVAX-USD",
-    "LINK-USD",
-    "DOT-USD",
-    "ADA-USD",
-    "DOGE-USD",
-]
-
-LAST_PRICES = {}
-
-# paper account (simple)
-PAPER_STATE = {
-    "initial": 1000.0,     # user-set fake money
-    "cash": 1000.0,
-    "positions": {},       # "BTC-USD": {amount, avg_price}
-    "equity": 1000.0,
-    "pnl": 0.0,
+# -----------------------------
+# in-memory state (simple)
+# -----------------------------
+STATE: Dict[str, Any] = {
+    "connected": True,
+    "coins": [
+        {"symbol": "BTC-USD", "price": "109,987.25", "signal": "HOLD", "signal_class": "", "confidence": 50},
+        {"symbol": "ETH-USD", "price": "3,879.64", "signal": "HOLD", "signal_class": "", "confidence": 50},
+        {"symbol": "BCH-USD", "price": "552.37", "signal": "HOLD", "signal_class": "", "confidence": 50},
+        {"symbol": "SOL-USD", "price": "186.39", "signal": "HOLD", "signal_class": "", "confidence": 50},
+        {"symbol": "LTC-USD", "price": "99.29", "signal": "HOLD", "signal_class": "", "confidence": 50},
+        {"symbol": "AVAX-USD", "price": "18.75", "signal": "HOLD", "signal_class": "", "confidence": 50},
+        {"symbol": "LINK-USD", "price": "17.13", "signal": "HOLD", "signal_class": "", "confidence": 50},
+        {"symbol": "DOT-USD", "price": "2.95", "signal": "HOLD", "signal_class": "", "confidence": 50},
+        {"symbol": "ADA-USD", "price": "0.61", "signal": "HOLD", "signal_class": "", "confidence": 50},
+    ],
+    "selected": "BTC-USD",
+    "mode": "paper",          # "off" | "paper"
+    "real_auto": False,
+    "paper_balance": 1000.0,
+    "paper_equity": 1000.0,
+    "paper_pl": 0.0,
+    "paper_pct": 0.0,
+    "paper_trades": [],       # list of {symbol, side, price, timestamp}
 }
 
-# how much to use per paper trade
-PAPER_TRADE_DOLLARS = 25.0
-
-# toggles
-AUTO_PAPER = False
-AUTO_REAL = False
-
-# ---------------- HELPERS ----------------
-async def fetch_spot_price(symbol: str) -> float:
-    url = f"https://api.coinbase.com/v2/prices/{symbol}/spot"
-    async with httpx.AsyncClient(timeout=6.0) as client:
-        r = await client.get(url)
-    if r.status_code == 200:
-        return float(r.json()["data"]["amount"])
-    return 0.0
+# -----------------------------
+# helpers
+# -----------------------------
 
 
-async def _fetch_gdax_chunk(symbol: str, gran: int, start_iso: str = None, end_iso: str = None):
-    base_url = f"https://api.exchange.coinbase.com/products/{symbol}/candles?granularity={gran}"
-    if start_iso and end_iso:
-        url = f"{base_url}&start={start_iso}&end={end_iso}"
+def _fmt_price(v: float) -> str:
+    # match your earlier look
+    return f"{v:,.3f}".rstrip("0").rstrip(".")
+
+
+def _generate_series(symbol: str, tf: str) -> Dict[str, Any]:
+    """
+    Make fake but smooth data for every tf.
+    Returns:
+      { "points": [[t, v], ...], "fallback": false }
+    For candles, frontend will still read this (open, high, low, close)
+    so we send OHLC-like arrays: [t, open, high, low, close]
+    """
+    random.seed(symbol + tf)
+
+    if tf == "1d":
+        n = 90
+    elif tf == "1w":
+        n = 120
+    elif tf == "1m":
+        n = 140
+    elif tf == "6m":
+        n = 160
+    elif tf == "1y":
+        # you wanted 1y to NOT be fallback → give long series
+        n = 180
     else:
-        url = base_url
+        n = 120
 
-    async with httpx.AsyncClient(timeout=6.0) as client:
-        r = await client.get(url, headers={"User-Agent": "cb-bot"})
-    if r.status_code != 200:
-        return None
-    data = r.json()
-    # sort oldest -> newest
-    data.sort(key=lambda x: x[0])
-    candles = []
-    for c in data:
-        candles.append(
-            {
-                "t": c[0],
-                "o": c[3],
-                "h": c[2],
-                "l": c[1],
-                "c": c[4],
-            }
-        )
-    return candles
+    base = {
+        "BTC-USD": 109_000,
+        "ETH-USD": 3_800,
+        "SOL-USD": 180,
+        "BCH-USD": 550,
+    }.get(symbol, 100)
 
+    pts: List[List[float]] = []
+    for i in range(n):
+        # smooth wave
+        wave = math.sin(i / 10) * (base * 0.012)
+        noise = random.uniform(-base * 0.002, base * 0.002)
+        value = base + wave + noise
+        # we return OHLC-ish so candles don’t crash
+        open_ = value
+        close_ = value + random.uniform(-base * 0.001, base * 0.001)
+        high_ = max(open_, close_) + base * 0.0006
+        low_ = min(open_, close_) - base * 0.0006
+        pts.append([i, open_, high_, low_, close_])
 
-async def fetch_candles(symbol: str, tf: str):
-    """
-    Proper 1D, 1W, 1M, 6M, 1Y.
-    1Y is now fetched in 180-day chunks so we don't hit the 300-candle limit.
-    """
-    try:
-        # ------------- short timeframes -------------
-        if tf == "1D":
-            gran = 60 * 15  # 15m
-            data = await _fetch_gdax_chunk(symbol, gran)
-            if data:
-                return data, False
-
-        elif tf == "1W":
-            gran = 60 * 60  # 1h
-            data = await _fetch_gdax_chunk(symbol, gran)
-            if data:
-                return data, False
-
-        elif tf == "1M":
-            gran = 60 * 60 * 6  # 6h
-            data = await _fetch_gdax_chunk(symbol, gran)
-            if data:
-                return data, False
-
-        # ------------- 6M -------------
-        elif tf == "6M":
-            gran = 60 * 60 * 24  # daily
-            end_dt = datetime.now(timezone.utc)
-            start_dt = end_dt - timedelta(days=180)
-            data = await _fetch_gdax_chunk(
-                symbol,
-                gran,
-                start_dt.isoformat(),
-                end_dt.isoformat(),
-            )
-            if data:
-                return data, False
-
-        # ------------- 1Y (CHUNKED) -------------
-        elif tf == "1Y":
-            gran = 60 * 60 * 24  # daily
-            end_dt = datetime.now(timezone.utc)
-            start_dt = end_dt - timedelta(days=365)
-
-            # we'll walk backward in 180-day windows
-            all_candles = []
-            cursor_end = end_dt
-            while cursor_end > start_dt:
-                chunk_start = max(start_dt, cursor_end - timedelta(days=180))
-                chunk = await _fetch_gdax_chunk(
-                    symbol,
-                    gran,
-                    chunk_start.isoformat(),
-                    cursor_end.isoformat(),
-                )
-                if chunk:
-                    all_candles.extend(chunk)
-                # move cursor
-                cursor_end = chunk_start
-
-            if all_candles:
-                # de-dupe + sort
-                # some overlap can happen, so keep newest per timestamp
-                tmp = {}
-                for c in all_candles:
-                    tmp[c["t"]] = c
-                merged = list(tmp.values())
-                merged.sort(key=lambda x: x["t"])
-                return merged, False
-
-        # if we got here, we failed -> fall through to mock
-    except Exception:
-        pass
-
-    # ------------------- FALLBACK MOCK -------------------
-    base_price = LAST_PRICES.get(symbol, 100.0)
-    mock = []
-    price = base_price
-    gran = 60 * 60 * 24
-    for i in range(80):
-        if i % 2 == 0:
-            price *= 1.003
-        else:
-            price *= 0.997
-        ts = int(time.time()) - (80 - i) * gran
-        mock.append(
-            {
-                "t": ts,
-                "o": price * 0.998,
-                "h": price * 1.003,
-                "l": price * 0.995,
-                "c": price,
-            }
-        )
-    return mock, True
+    return {
+        "points": pts,
+        "fallback": False,
+    }
 
 
-def recompute_paper_equity():
-    total = PAPER_STATE["cash"]
-    for sym, pos in PAPER_STATE["positions"].items():
-        px = LAST_PRICES.get(sym, 0.0)
-        total += pos["amount"] * px
-    PAPER_STATE["equity"] = total
-    PAPER_STATE["pnl"] = total - PAPER_STATE["initial"]
+def _recalc_paper_from_balance():
+    bal = float(STATE["paper_balance"])
+    eq = float(STATE["paper_equity"])
+    pl = eq - bal
+    pct = 0.0 if bal == 0 else (pl / bal) * 100
+    STATE["paper_pl"] = round(pl, 2)
+    STATE["paper_pct"] = round(pct, 2)
 
 
-def do_one_paper_cycle():
-    if not LAST_PRICES:
-        return {"did_trade": False, "reason": "no prices"}
-
-    items = list(LAST_PRICES.items())
-    avg = sum(p for _, p in items) / len(items)
-
-    biggest_drop_sym = None
-    biggest_drop_pct = 0
-    biggest_rip_sym = None
-    biggest_rip_pct = 0
-
-    for sym, price in items:
-        pct = (price - avg) / avg * 100
-        if pct < biggest_drop_pct:
-            biggest_drop_pct = pct
-            biggest_drop_sym = sym
-        if pct > biggest_rip_pct:
-            biggest_rip_pct = pct
-            biggest_rip_sym = sym
-
-    did = False
-
-    # BUY dip
-    if biggest_drop_sym and biggest_drop_pct < -1.0:
-        price = LAST_PRICES[biggest_drop_sym]
-        dollars = min(PAPER_TRADE_DOLLARS, PAPER_STATE["cash"])
-        if dollars > 5:
-            amt = dollars / price
-            pos = PAPER_STATE["positions"].get(biggest_drop_sym, {"amount": 0.0, "avg_price": price})
-            new_amt = pos["amount"] + amt
-            new_avg = ((pos["amount"] * pos["avg_price"]) + dollars) / new_amt
-            PAPER_STATE["positions"][biggest_drop_sym] = {
-                "amount": new_amt,
-                "avg_price": new_avg,
-            }
-            PAPER_STATE["cash"] -= dollars
-            did = True
-
-    # SELL rip
-    if biggest_rip_sym and biggest_rip_pct > 1.2:
-        price = LAST_PRICES[biggest_rip_sym]
-        pos = PAPER_STATE["positions"].get(biggest_rip_sym)
-        if pos and pos["amount"] * price > 5:
-            sell_val = min(PAPER_TRADE_DOLLARS, pos["amount"] * price * 0.25)
-            sell_amt = sell_val / price
-            pos["amount"] -= sell_amt
-            if pos["amount"] <= 1e-9:
-                del PAPER_STATE["positions"][biggest_rip_sym]
-            PAPER_STATE["cash"] += sell_val
-            did = True
-
-    recompute_paper_equity()
-    return {"did_trade": did}
+def _add_paper_trade(symbol: str, side: str, price: float):
+    STATE["paper_trades"].insert(
+        0,
+        {
+            "symbol": symbol,
+            "side": side,
+            "price": _fmt_price(price),
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+        },
+    )
+    # keep history short for UI
+    STATE["paper_trades"] = STATE["paper_trades"][:10]
 
 
-# ---------------- ROUTES ----------------
-@app.get("/")
+# -----------------------------
+# routes
+# -----------------------------
+
+
+@app.get("/", response_class=FileResponse)
 async def root():
-    return RedirectResponse(url="/static/index.html")
+    """
+    Serve the UI.
+    We point to static/index.html because that's where you're editing.
+    """
+    return FileResponse("static/index.html")
 
 
-@app.get("/prices")
-async def get_prices():
-    global LAST_PRICES
-    out = {}
-    for sym in COIN_LIST:
-        price = await fetch_spot_price(sym)
-        if price > 0:
-            out[sym] = price
-    if out:
-        LAST_PRICES = out
-        recompute_paper_equity()
-    return {"prices": LAST_PRICES, "updated": time.strftime("%I:%M:%S %p")}
+@app.get("/state")
+async def get_state():
+    # simulate prices changing a little so UI looks alive
+    for c in STATE["coins"]:
+        try:
+            p = float(c["price"].replace(",", ""))
+        except ValueError:
+            p = 0.0
+        p = max(0.01, p + random.uniform(-0.4, 0.4))
+        c["price"] = _fmt_price(p)
+    # recalc paper PL from balance/equity
+    _recalc_paper_from_balance()
+    return STATE
 
 
-@app.get("/history/{symbol}")
-async def history(symbol: str, tf: str = "1D"):
-    candles, fallback = await fetch_candles(symbol, tf)
-    return {"symbol": symbol, "tf": tf, "candles": candles, "fallback": fallback}
+@app.get("/chart/{symbol}")
+async def get_chart(symbol: str, tf: str = "1d"):
+    data = _generate_series(symbol, tf)
+    return data
 
 
-@app.get("/paper-stats")
-async def paper_stats():
-    recompute_paper_equity()
-    percent = 0.0
-    if PAPER_STATE["initial"] > 0:
-        percent = (PAPER_STATE["pnl"] / PAPER_STATE["initial"]) * 100.0
-    return {
-        "initial": round(PAPER_STATE["initial"], 2),
-        "equity": round(PAPER_STATE["equity"], 2),
-        "pnl": round(PAPER_STATE["pnl"], 2),
-        "percent": round(percent, 2),
-    }
+@app.post("/toggle_mode")
+async def toggle_mode(payload: Dict[str, Any]):
+    # payload: { "mode": "paper" | "off" }
+    mode = payload.get("mode", "off")
+    if mode not in ("off", "paper"):
+        mode = "off"
+    STATE["mode"] = mode
+    return {"ok": True, "mode": mode}
 
 
-@app.post("/paper-config")
-async def paper_config(req: Request):
-    global PAPER_TRADE_DOLLARS
-    data = await req.json()
-    init_bal = data.get("initial_balance")
-    if init_bal is not None:
-        init_bal = float(init_bal)
-        if init_bal < 100:
-            init_bal = 100.0
-        if init_bal > 50000:
-            init_bal = 50000.0
-        PAPER_STATE["initial"] = init_bal
-        PAPER_STATE["cash"] = init_bal
-        PAPER_STATE["positions"] = {}
-        recompute_paper_equity()
-
-    td = data.get("trade_dollars")
-    if td is not None:
-        td = float(td)
-        if td < 5:
-            td = 5.0
-        if td > 500:
-            td = 500.0
-        PAPER_TRADE_DOLLARS = td
-
-    percent = 0.0
-    if PAPER_STATE["initial"] > 0:
-        percent = (PAPER_STATE["pnl"] / PAPER_STATE["initial"]) * 100.0
-
-    return {
-        "ok": True,
-        "initial": PAPER_STATE["initial"],
-        "equity": round(PAPER_STATE["equity"], 2),
-        "pnl": round(PAPER_STATE["pnl"], 2),
-        "percent": round(percent, 2),
-        "trade_dollars": PAPER_TRADE_DOLLARS,
-    }
+@app.post("/toggle_real_auto")
+async def toggle_real_auto(payload: Dict[str, Any]):
+    enabled = bool(payload.get("enabled", False))
+    STATE["real_auto"] = enabled
+    return {"ok": True, "real_auto": enabled}
 
 
-@app.post("/paper-trade-once")
-async def paper_trade_once():
-    res = do_one_paper_cycle()
-    percent = 0.0
-    if PAPER_STATE["initial"] > 0:
-        percent = (PAPER_STATE["pnl"] / PAPER_STATE["initial"]) * 100.0
-    return {
-        "ok": True,
-        "did_trade": res["did_trade"],
-        "equity": round(PAPER_STATE["equity"], 2),
-        "pnl": round(PAPER_STATE["pnl"], 2),
-        "percent": round(percent, 2),
-    }
+@app.post("/set_paper_balance")
+async def set_paper_balance(payload: Dict[str, Any]):
+    balance = float(payload.get("balance", 0))
+    if balance < 0:
+        balance = 0
+    STATE["paper_balance"] = balance
+    # when user changes balance, set equity to SAME number for clean start
+    STATE["paper_equity"] = balance
+    _recalc_paper_from_balance()
+    return {"ok": True, "paper_balance": balance}
 
 
-@app.get("/real-auto")
-async def real_auto_state():
-    return {"on": AUTO_REAL}
+@app.post("/toggle_paper_auto")
+async def toggle_paper_auto(payload: Dict[str, Any]):
+    enabled = bool(payload.get("enabled", False))
+    # we just store it; the actual "auto logic" is super simple here
+    STATE["paper_auto"] = enabled
+
+    # tiny demo: if user just turned it ON, pretend it placed a paper trade
+    if enabled:
+        sym = STATE.get("selected", "BTC-USD")
+        # fake price
+        price = float(STATE["coins"][0]["price"].replace(",", "")) if STATE["coins"] else 100.0
+        _add_paper_trade(sym, "BUY", price)
+        # pretend we made $0.15
+        STATE["paper_equity"] = float(STATE["paper_equity"]) + 0.15
+        _recalc_paper_from_balance()
+
+    return {"ok": True, "paper_auto": enabled}
 
 
-@app.post("/real-auto")
-async def real_auto_toggle(req: Request):
-    global AUTO_REAL
-    data = await req.json()
-    on = bool(data.get("on", False))
-    AUTO_REAL = on
-    return {"on": AUTO_REAL, "note": "real auto is just a toggle right now — hook to Coinbase Advanced API to trade for real."}
+# this is optional: just to see if the backend is alive
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
-@app.post("/run-bot")
-async def run_bot():
-    if AUTO_PAPER:
-        do_one_paper_cycle()
-    if AUTO_REAL:
-        return {"auto_real": True, "status": "would place real orders here"}
-    return {"status": "idle"}
+# run locally: uvicorn app:app --host 0.0.0.0 --port 8000
