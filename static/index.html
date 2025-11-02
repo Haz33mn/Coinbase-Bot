@@ -9,11 +9,11 @@
       --bg: #000;
       --surface: #121212;
       --surface2: #161616;
-      --accent: #00f0ff;
-      --accent-soft: rgba(0, 240, 255, 0.15);
-      --green: #18d46a;
-      --red: #ff5c5c;
-      --muted: rgba(255, 255, 255, 0.35);
+      --accent: #00bcd4;
+      --accent-soft: rgba(0,188,212,0.18);
+      --green: #1de975;
+      --red: #ff4d67;
+      --muted: rgba(255,255,255,0.35);
       --text: #fff;
       --radius: 14px;
     }
@@ -22,16 +22,17 @@
       margin: 0;
       background: var(--bg);
       color: var(--text);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont,"Segoe UI",sans-serif;
       min-height: 100vh;
       display: flex;
       justify-content: center;
       padding: 1.5rem 0 4rem;
     }
+    .hidden { display: none !important; }
     .app-shell {
       width: min(1200px, 100%);
-      background: rgba(18,18,18,0.4);
-      border: 1px solid rgba(255,255,255,0.03);
+      background: rgba(18,18,18,0.2);
+      border: 1px solid rgba(255,255,255,0.02);
       border-radius: 20px;
       overflow: hidden;
     }
@@ -39,14 +40,13 @@
       display: flex;
       align-items: center;
       gap: .75rem;
-      padding: 1.25rem 1.75rem 0.75rem;
+      padding: 1.25rem 1.75rem .75rem;
     }
     .dot {
-      width: 10px; height: 10px;
-      border-radius: 999px;
+      width: 10px; height: 10px; border-radius: 999px;
       background: #fe3434;
     }
-    .dot.online { background: #1be26a; }
+    .dot.online { background: #4deb5d; }
     .title { font-weight: 650; }
     .refresh-btn {
       margin-left: auto;
@@ -81,19 +81,15 @@
       font-size: .75rem;
     }
     .coin-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      display: flex; justify-content: space-between; align-items: center;
       padding: .55rem .75rem;
-      gap: .75rem;
-      border-radius: 12px;
       margin: .5rem .5rem 0;
+      border-radius: 12px;
       cursor: pointer;
-      transition: 0.1s ease;
     }
     .coin-item.active {
-      background: rgba(0,240,255,0.1);
-      border: 1px solid rgba(0,240,255,0.25);
+      background: rgba(0,188,212,0.12);
+      border: 1px solid rgba(0,188,212,0.35);
     }
     .coin-left { display: flex; flex-direction: column; gap: .2rem; }
     .coin-name { font-size: .8rem; }
@@ -103,10 +99,9 @@
       padding: .2rem .5rem;
       border-radius: 999px;
       background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.05);
     }
-    .signal-buy { background: rgba(24,212,106,0.15); border-color: rgba(24,212,106,0.35); }
-    .signal-sell { background: rgba(255,92,92,0.15); border-color: rgba(255,92,92,0.35); }
+    .signal-buy { background: rgba(29,233,117,0.15); }
+    .signal-sell { background: rgba(255,77,103,0.15); }
 
     .chart-panel {
       background: rgba(0,0,0,0.3);
@@ -139,93 +134,63 @@
       cursor: pointer;
     }
     .btn-sm.active {
-      background: rgba(0,240,255,0.15);
-      border-color: rgba(0,240,255,0.35);
+      background: rgba(0,188,212,0.17);
+      border-color: rgba(0,188,212,0.38);
     }
     .chart-canvas-wrap {
       flex: 1;
       border-radius: 14px;
-      background: radial-gradient(circle at top, rgba(0,240,255,0.08), rgba(0,0,0,0));
+      background: radial-gradient(circle, rgba(0,188,212,0.05), rgba(0,0,0,0));
       position: relative;
       overflow: hidden;
     }
-    canvas {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
+    canvas { width: 100%; height: 100%; display: block; }
 
-    /* paper/real info row */
     .info-row {
       display: grid;
       grid-template-columns: repeat(4, minmax(0,1fr));
       gap: 1rem;
       padding: 0 1.75rem .75rem;
-      margin-top: .4rem;
     }
     .info-card {
       background: rgba(0,0,0,0.3);
       border: 1px solid rgba(255,255,255,0.02);
       border-radius: 16px;
       padding: .55rem .75rem .55rem;
-      min-height: 70px;
     }
     .info-label {
       font-size: .6rem;
       color: var(--muted);
       text-transform: uppercase;
-      letter-spacing: .06em;
     }
-    .info-value {
-      font-size: .9rem;
-      margin-top: .35rem;
-    }
+    .info-value { margin-top: .35rem; font-size: .9rem; }
     .info-value.green { color: var(--green); }
     .info-value.red { color: var(--red); }
 
-    .trades-row {
-      padding: 0 1.75rem .5rem;
-    }
+    .trades-row { padding: 0 1.75rem .5rem; }
     .trades-box {
       background: rgba(0,0,0,0.25);
       border: 1px solid rgba(255,255,255,0.02);
       border-radius: 16px;
-      min-height: 48px;
       font-size: .7rem;
-      padding: .4rem .75rem .3rem;
+      padding: .4rem .75rem .65rem;
     }
-    .trade-line {
-      display: flex;
-      align-items: center;
-      gap: .35rem;
-      margin-bottom: .25rem;
-    }
-    .pill {
-      font-size: .55rem;
-      padding: .1rem .4rem .1rem;
-      border-radius: 999px;
-    }
-    .pill.paper { background: rgba(0,240,255,0.12); }
-    .pill.real { background: rgba(255,188,59,0.12); }
-    .pill.buy { background: rgba(24,212,106,0.18); }
-    .pill.sell { background: rgba(255,92,92,0.2); }
+    .trade-line { display:flex; gap:.35rem; align-items:center; margin-bottom:.25rem; }
+    .pill { font-size:.55rem; padding:.1rem .4rem; border-radius:999px; }
+    .pill.paper { background: rgba(0,188,212,0.15); }
+    .pill.real { background: rgba(255,169,52,0.15); }
+    .pill.buy { background: rgba(29,233,117,0.3); }
+    .pill.sell { background: rgba(255,77,103,0.3); }
     .ts { color: var(--muted); }
 
-    .footer-row {
-      padding: 0 1.75rem 1.3rem;
-    }
+    .footer-row { padding: 0 1.75rem 1.3rem; }
     .refresh-bar {
       width: 100%;
       height: 14px;
       background: #fff;
       border-radius: 999px;
-      position: relative;
     }
-    .updated {
-      font-size: .6rem;
-      color: var(--muted);
-      margin-top: .35rem;
-    }
+    .updated { font-size: .6rem; color: var(--muted); margin-top: .35rem; }
 
     @media (max-width: 980px) {
       .body-row { grid-template-columns: 1fr; }
@@ -274,7 +239,7 @@
       </div>
     </div>
 
-    <div class="info-row">
+    <div id="paper-section" class="info-row">
       <div class="info-card">
         <div class="info-label">paper balance (USD)</div>
         <div style="display:flex;gap:.4rem;align-items:center;margin-top:.25rem;">
@@ -297,10 +262,8 @@
       </div>
     </div>
 
-    <div class="trades-row">
-      <div id="trades-box" class="trades-box">
-        no trades yet
-      </div>
+    <div id="trades-row" class="trades-row">
+      <div id="trades-box" class="trades-box">no trades yet</div>
     </div>
 
     <div class="footer-row">
@@ -323,6 +286,8 @@
     const chartPriceEl = document.getElementById("chart-price");
     const chartCanvas = document.getElementById("chart-canvas");
     const updatedEl = document.getElementById("updated");
+    const paperSection = document.getElementById("paper-section");
+    const tradesRow = document.getElementById("trades-row");
     const paperBalanceInput = document.getElementById("paper-balance-input");
     const equityNowEl = document.getElementById("equity-now");
     const moneyEarnedEl = document.getElementById("money-earned");
@@ -350,11 +315,9 @@
 
     function renderState() {
       const st = CURRENT.state;
-      // header dot
       const dot = document.getElementById("conn-dot");
       if (st.connected) dot.classList.add("online"); else dot.classList.remove("online");
 
-      // coin list
       coinListEl.innerHTML = "";
       (st.coins || []).forEach(c => {
         const item = document.createElement("div");
@@ -373,13 +336,20 @@
         coinListEl.appendChild(item);
       });
 
-      // top text
       chartCoinEl.textContent = st.selected;
       const coin = (st.coins || []).find(c => c.symbol === st.selected);
       chartPriceEl.textContent = coin ? "$" + Number(coin.price || 0).toLocaleString() : "$0";
 
-      // paper section
-      paperBalanceInput.value = st.paper_balance != null ? st.paper_balance : 1000;
+      // paper section show/hide
+      if (st.paper_enabled) {
+        paperSection.classList.remove("hidden");
+        tradesRow.classList.remove("hidden");
+      } else {
+        paperSection.classList.add("hidden");
+        tradesRow.classList.add("hidden");
+      }
+
+      paperBalanceInput.value = st.paper_balance ?? 1000;
       equityNowEl.textContent = "$" + (st.paper_equity ?? 0).toFixed(2);
       const pl = st.paper_pl ?? 0;
       moneyEarnedEl.textContent = (pl >= 0 ? "+" : "-") + "$" + Math.abs(pl).toFixed(2);
@@ -391,33 +361,38 @@
       paperAutoBtn.textContent = "paper auto: " + (st.paper_auto ? "ON" : "OFF");
       realBtn.textContent = "Real auto: " + (st.real_auto ? "ON" : "OFF");
 
-      // trades
+      // trades  (paper + real)
       const paperTrades = st.paper_trades || [];
       const realTrades = st.real_trades || [];
       let html = "";
-      paperTrades.forEach(t => {
-        html += `<div class="trade-line">
-          <span class="pill paper">PAPER</span>
-          <span class="pill ${t.side === "BUY" ? "buy" : "sell"}">${t.side}</span>
-          <b>${t.symbol}</b>
-          <span>${Number(t.qty || 0).toFixed(4)}</span>
-          <span>@ $${Number(t.price || 0).toFixed(2)}</span>
-          <span class="ts">${fmtTime(t.at)}</span>
-        </div>`;
-      });
-      realTrades.forEach(t => {
-        html += `<div class="trade-line">
-          <span class="pill real">REAL</span>
-          <span class="pill ${t.side === "BUY" ? "buy" : "sell"}">${t.side}</span>
-          <b>${t.symbol}</b>
-          <span>${Number(t.qty || 0).toFixed(4)}</span>
-          <span>@ $${Number(t.price || 0).toFixed(2)}</span>
-          <span class="ts">${fmtTime(t.at)}</span>
-        </div>`;
-      });
+      if (paperTrades.length) {
+        html += `<div style="font-weight:600;margin-bottom:.25rem;">PAPER TRADES (last)</div>`;
+        paperTrades.forEach(t => {
+          html += `<div class="trade-line">
+            <span class="pill paper">PAPER</span>
+            <span class="pill ${t.side === "BUY" ? "buy" : "sell"}">${t.side}</span>
+            <b>${t.symbol}</b>
+            <span>${Number(t.qty || 0).toFixed(4)}</span>
+            <span>@ $${Number(t.price || 0).toFixed(2)}</span>
+            <span class="ts">${fmtTime(t.at)}</span>
+          </div>`;
+        });
+      }
+      if (realTrades.length) {
+        html += `<div style="font-weight:600;margin:.4rem 0 .25rem;">REAL TRADES (last)</div>`;
+        realTrades.forEach(t => {
+          html += `<div class="trade-line">
+            <span class="pill real">REAL</span>
+            <span class="pill ${t.side === "BUY" ? "buy" : "sell"}">${t.side}</span>
+            <b>${t.symbol}</b>
+            <span>${Number(t.qty || 0).toFixed(4)}</span>
+            <span>@ $${Number(t.price || 0).toFixed(2)}</span>
+            <span class="ts">${fmtTime(t.at)}</span>
+          </div>`;
+        });
+      }
       tradesBox.innerHTML = html || "no trades yet";
 
-      // updated
       updatedEl.textContent = "updated " + (st.last_update ? new Date(st.last_update).toLocaleTimeString() : "--:--");
     }
 
@@ -432,30 +407,26 @@
     }
 
     function drawChart(points) {
-      const w = chartCanvas.clientWidth;
-      const h = chartCanvas.clientHeight;
+      const w = chartCanvas.clientWidth || 500;
+      const h = chartCanvas.clientHeight || 220;
       chartCanvas.width = w * 2;
       chartCanvas.height = h * 2;
-      ctx.scale(2,2);
+      const dpr = 2;
+      ctx.setTransform(dpr,0,0,dpr,0,0);
       ctx.clearRect(0,0,w,h);
-      if (!points.length) {
-        ctx.fillStyle = "rgba(255,255,255,0.12)";
-        ctx.fillText("no data…", 10, 20);
-        return;
-      }
+      if (!points.length) return;
       const max = Math.max(...points.map(p => p.c));
       const min = Math.min(...points.map(p => p.c));
-      const pad = 14;
-      const usableW = w - pad*2;
-      const usableH = h - pad*2;
+      const padX = 16, padY = 12;
+      const usableW = w - padX*2;
+      const usableH = h - padY*2;
+      ctx.beginPath();
       ctx.lineWidth = 2;
       ctx.strokeStyle = "#38eaff";
-      ctx.beginPath();
       points.forEach((p,i) => {
-        const x = pad + (i / Math.max(points.length-1,1)) * usableW;
-        const y = pad + (1 - (p.c - min) / Math.max((max-min), 0.0001)) * usableH;
-        if (i === 0) ctx.moveTo(x,y);
-        else ctx.lineTo(x,y);
+        const x = padX + (i / Math.max(points.length-1,1)) * usableW;
+        const y = padY + (1 - (p.c - min) / Math.max((max-min), 0.0001)) * usableH;
+        if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
       });
       ctx.stroke();
     }
@@ -485,6 +456,15 @@
       });
       fetchState();
     });
+    paperBtn.addEventListener("click", async () => {
+      const enabled = !(CURRENT.state && CURRENT.state.paper_enabled);
+      await fetch(API + "/paper/enable", {
+        method:"POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({enabled})
+      });
+      fetchState();
+    });
     realBtn.addEventListener("click", async () => {
       const on = !(CURRENT.state && CURRENT.state.real_auto);
       await fetch(API + "/real/toggle", {
@@ -494,7 +474,6 @@
       });
       fetchState();
     });
-
     document.querySelectorAll(".tf-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".tf-btn").forEach(b => b.classList.remove("active"));
@@ -504,7 +483,6 @@
       });
     });
 
-    // init
     fetchState();
   </script>
 </body>
