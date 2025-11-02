@@ -1,14 +1,13 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
-import time
 import os
+import time
 
 app = FastAPI()
 
-# allow your browser to hit it
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,7 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# serve /static/index.html
+# make sure /static exists
 if not os.path.exists("static"):
     os.makedirs("static", exist_ok=True)
 
@@ -25,30 +24,21 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 async def root():
-    # always show the UI
     return RedirectResponse(url="/static/index.html")
 
 
-# --------------------------------------------------------------------------------------
-# GLOBAL STATE (kept in memory — fine for now on Render free)
-# --------------------------------------------------------------------------------------
-AUTO_MODE = "off"  # "off" | "paper" | "live"
-LAST_PRICES = {}   # {"BTC-USD": 109000.0, ...}
+# ------------------ STATE ------------------
+AUTO_MODE = "off"  # off | paper | live
+LAST_PRICES = {}
 
 PAPER_STATE = {
     "cash": 1000.0,
-    "positions": {},  # "BTC-USD": {"amount": 0.0003, "avg_price": 108000}
+    "positions": {},
     "last_equity": 1000.0,
     "pnl": 0.0,
-    "trades": [],  # list of dicts
+    "trades": [],
 }
 
-# how much to "paper trade" each time (very small)
-PAPER_TRADE_DOLLARS = 25.0
-
-# --------------------------------------------------------------------------------------
-# HELPERS
-# --------------------------------------------------------------------------------------
 COIN_LIST = [
     "BTC-USD",
     "ETH-USD",
@@ -62,50 +52,47 @@ COIN_LIST = [
     "DOGE-USD",
 ]
 
+PAPER_TRADE_DOLLARS = 25.0
 
+
+# ------------------ HELPERS ------------------
 async def fetch_spot_price(symbol: str) -> float:
-    """
-    Try Coinbase public spot endpoint.
-    """
     url = f"https://api.coinbase.com/v2/prices/{symbol}/spot"
     async with httpx.AsyncClient(timeout=6.0) as client:
         r = await client.get(url)
     if r.status_code == 200:
         data = r.json()
         return float(data["data"]["amount"])
-    # fallback
     return 0.0
 
 
-async def fetch_candles(symbol: str, granularity: str) -> list:
+async def fetch_candles(symbol: str, tf: str) -> tuple[list, bool]:
     """
-    We fake history if Coinbase doesn't give us any.
-    granularity: "1D", "1W", "1M", "6M", "1Y"  -> we map to minutes roughly
+    return (candles, used_fallback)
+    1) try old public exchange endpoint (very reliable)
+    2) if that fails -> make mock
     """
-    # NOTE: their /candles endpoint is touchy, so we just build a mock if it fails
-    # real path (no auth) for public products:
-    gran_map = {
-        "1D": 60,     # 1h candles
-        "1W": 15,     # 15m candles
-        "1M": 60,     # 1h candles (less data)
-        "6M": 360,    # 6h
-        "1Y": 1440,   # 1d
+    # map our TF to a Coinbase granularity (seconds)
+    tf_map = {
+        "1D": 60 * 15,     # 15m -> 96 bars
+        "1W": 60 * 60,     # 1h
+        "1M": 60 * 60 * 6,  # 6h
+        "6M": 60 * 60 * 24,  # 1d
+        "1Y": 60 * 60 * 24,  # 1d
     }
-    product_id = symbol.replace("-", "-")
-    url = (
-        f"https://api.coinbase.com/api/v3/brokerage/market/products/{product_id}/candles"
-        f"?granularity={gran_map.get(granularity, 60)}"
-    )
+    gran = tf_map.get(tf, 60 * 15)
+    product_id = symbol  # BTC-USD
+
+    # 1) try exchange endpoint
+    ex_url = f"https://api.exchange.coinbase.com/products/{product_id}/candles?granularity={gran}"
     try:
         async with httpx.AsyncClient(timeout=6.0) as client:
-            r = await client.get(url)
+            r = await client.get(ex_url, headers={"User-Agent": "cb-bot"})
         if r.status_code == 200:
-            data = r.json()
-            # Coinbase returns newest first; we want oldest first
-            data.reverse()
+            raw = r.json()  # [[time, low, high, open, close, volume], ...] newest first
+            raw.sort(key=lambda x: x[0])  # oldest first
             candles = []
-            for c in data:
-                # [start, low, high, open, close, volume]
+            for c in raw:
                 candles.append(
                     {
                         "t": c[0],
@@ -116,59 +103,66 @@ async def fetch_candles(symbol: str, granularity: str) -> list:
                     }
                 )
             if candles:
-                return candles
+                return candles, False
     except Exception:
         pass
 
-    # fallback mock
+    # 2) fallback fake
+    base_price = LAST_PRICES.get(symbol, 100.0)
     mock = []
-    price = LAST_PRICES.get(symbol, 100.0)
+    price = base_price
     for i in range(80):
-        price = price * (1 + (0.002 if i % 5 else -0.002))
+        # little zigzag
+        if i % 2 == 0:
+            price *= 1.003
+        else:
+            price *= 0.997
+        ts = int(time.time()) - (80 - i) * gran
         mock.append(
             {
-                "t": int(time.time()) - (80 - i) * 60,
-                "o": price * 0.997,
-                "h": price * 1.004,
-                "l": price * 0.994,
+                "t": ts,
+                "o": price * 0.998,
+                "h": price * 1.003,
+                "l": price * 0.995,
                 "c": price,
             }
         )
-    return mock
+    return mock, True
 
 
-def compute_equity_from_prices(prices: dict) -> None:
-    """
-    Recompute paper equity using current prices.
-    """
+def recompute_paper_equity():
     total = PAPER_STATE["cash"]
     for sym, pos in PAPER_STATE["positions"].items():
-        px = prices.get(sym, 0.0)
+        px = LAST_PRICES.get(sym, 0.0)
         total += pos["amount"] * px
-    PAPER_STATE["pnl"] = total - 1000.0
     PAPER_STATE["last_equity"] = total
+    PAPER_STATE["pnl"] = total - 1000.0
 
 
-# --------------------------------------------------------------------------------------
-# ENDPOINTS
-# --------------------------------------------------------------------------------------
+# ------------------ API ------------------
 @app.get("/prices")
 async def get_prices():
     global LAST_PRICES
     out = {}
     for sym in COIN_LIST:
-        price = await fetch_spot_price(sym)
-        if price > 0:
-            out[sym] = price
+        p = await fetch_spot_price(sym)
+        if p > 0:
+            out[sym] = p
     if out:
         LAST_PRICES = out
+        recompute_paper_equity()
     return {"prices": LAST_PRICES, "updated": time.strftime("%I:%M:%S %p")}
 
 
 @app.get("/history/{symbol}")
 async def get_history(symbol: str, tf: str = "1D"):
-    candles = await fetch_candles(symbol, tf)
-    return {"symbol": symbol, "tf": tf, "candles": candles}
+    candles, fallback = await fetch_candles(symbol, tf)
+    return {
+        "symbol": symbol,
+        "tf": tf,
+        "candles": candles,
+        "fallback": fallback,
+    }
 
 
 @app.get("/trade-mode")
@@ -180,68 +174,56 @@ async def get_trade_mode():
 async def set_trade_mode(req: Request):
     global AUTO_MODE
     data = await req.json()
-    mode = data.get("mode", "off")
-    if mode not in ("off", "paper", "live"):
-        mode = "off"
-    AUTO_MODE = mode
+    m = data.get("mode", "off")
+    if m not in ("off", "paper", "live"):
+        m = "off"
+    AUTO_MODE = m
     return {"mode": AUTO_MODE}
 
 
 @app.get("/paper-stats")
 async def paper_stats():
-    # make sure equity is fresh
-    compute_equity_from_prices(LAST_PRICES)
+    recompute_paper_equity()
     return {
         "cash": round(PAPER_STATE["cash"], 2),
         "equity": round(PAPER_STATE["last_equity"], 2),
         "pnl": round(PAPER_STATE["pnl"], 2),
         "positions": PAPER_STATE["positions"],
-        "trades": PAPER_STATE["trades"][-20:],  # last 20
+        "trades": PAPER_STATE["trades"][-30:],
         "started_with": 1000.0,
     }
 
 
 @app.get("/live-stats")
 async def live_stats():
-    # right now we don't hit Coinbase for real — keeps you safe
     return {
         "connected": True,
         "executed_trades": 0,
-        "note": "live trading stub — safe mode",
+        "note": "live trading not wired to Coinbase yet (safe).",
     }
 
 
 @app.post("/run-bot")
 async def run_bot():
     """
-    Called by the frontend every ~25s.
-    If mode == paper -> do tiny buys/sells, but ONLY if the move is big enough
-    so that fees would not eat it (we assume ~0.5% round trip -> we want >=1.0% move).
+    very small paper logic
     """
     if AUTO_MODE != "paper":
         return {"status": "idle", "mode": AUTO_MODE}
 
-    # need prices
     if not LAST_PRICES:
         return {"status": "no-prices"}
 
-    # super dumb strategy: look for the coin that dropped the most from its max in this batch
-    # and buy a tiny bit; if something popped >1.2%, sell a tiny bit
+    prices_items = list(LAST_PRICES.items())
+    avg = sum(p for _, p in prices_items) / len(prices_items)
+
     biggest_drop_sym = None
     biggest_drop_pct = 0
     biggest_rip_sym = None
     biggest_rip_pct = 0
 
-    # turn prices into list to compare
-    prices_items = list(LAST_PRICES.items())
-    if len(prices_items) < 2:
-        return {"status": "not-enough-prices"}
-
-    avg_price = sum(p for _, p in prices_items) / len(prices_items)
-
-    for sym, price in prices_items:
-        # compare to avg, just to get a % move
-        pct = (price - avg_price) / avg_price * 100
+    for sym, p in prices_items:
+        pct = (p - avg) / avg * 100
         if pct < biggest_drop_pct:
             biggest_drop_pct = pct
             biggest_drop_sym = sym
@@ -249,20 +231,19 @@ async def run_bot():
             biggest_rip_pct = pct
             biggest_rip_sym = sym
 
-    did_something = False
+    did_trade = False
 
-    # BUY case: dropped more than 1.0% -> buy small
+    # buy dip (>1%) to beat ~0.5% fees
     if biggest_drop_sym and biggest_drop_pct < -1.0:
-        px = LAST_PRICES[biggest_drop_sym]
+        price = LAST_PRICES[biggest_drop_sym]
         dollars = min(PAPER_TRADE_DOLLARS, PAPER_STATE["cash"])
-        if dollars > 5:  # don't buy dust
-            amount = dollars / px
-            pos = PAPER_STATE["positions"].get(biggest_drop_sym, {"amount": 0.0, "avg_price": px})
-            new_amount = pos["amount"] + amount
-            # new avg price
-            new_avg = ((pos["amount"] * pos["avg_price"]) + dollars) / new_amount
+        if dollars > 5:
+            amt = dollars / price
+            pos = PAPER_STATE["positions"].get(biggest_drop_sym, {"amount": 0.0, "avg_price": price})
+            new_amt = pos["amount"] + amt
+            new_avg = ((pos["amount"] * pos["avg_price"]) + dollars) / new_amt
             PAPER_STATE["positions"][biggest_drop_sym] = {
-                "amount": new_amount,
+                "amount": new_amt,
                 "avg_price": new_avg,
             }
             PAPER_STATE["cash"] -= dollars
@@ -270,42 +251,39 @@ async def run_bot():
                 {
                     "side": "BUY",
                     "symbol": biggest_drop_sym,
-                    "price": px,
+                    "price": price,
                     "size_usd": dollars,
                     "ts": time.time(),
                 }
             )
-            did_something = True
+            did_trade = True
 
-    # SELL case: ripped more than 1.2% -> sell small
+    # sell rip (>1.2%)
     if biggest_rip_sym and biggest_rip_pct > 1.2:
-        px = LAST_PRICES[biggest_rip_sym]
+        price = LAST_PRICES[biggest_rip_sym]
         pos = PAPER_STATE["positions"].get(biggest_rip_sym)
-        if pos and pos["amount"] * px > 5:  # have at least $5 to dump
-            # sell 25% of position
-            sell_value = min(PAPER_TRADE_DOLLARS, pos["amount"] * px * 0.25)
-            sell_amount = sell_value / px
-            pos["amount"] -= sell_amount
-            if pos["amount"] <= 1e-8:
+        if pos and pos["amount"] * price > 5:
+            sell_val = min(PAPER_TRADE_DOLLARS, pos["amount"] * price * 0.25)
+            sell_amt = sell_val / price
+            pos["amount"] -= sell_amt
+            if pos["amount"] <= 1e-9:
                 del PAPER_STATE["positions"][biggest_rip_sym]
-            PAPER_STATE["cash"] += sell_value
+            PAPER_STATE["cash"] += sell_val
             PAPER_STATE["trades"].append(
                 {
                     "side": "SELL",
                     "symbol": biggest_rip_sym,
-                    "price": px,
-                    "size_usd": sell_value,
+                    "price": price,
+                    "size_usd": sell_val,
                     "ts": time.time(),
                 }
             )
-            did_something = True
+            did_trade = True
 
-    # recompute equity after maybe trading
-    compute_equity_from_prices(LAST_PRICES)
-
+    recompute_paper_equity()
     return {
         "status": "ok",
-        "did_trade": did_something,
+        "did_trade": did_trade,
         "paper": {
             "cash": round(PAPER_STATE["cash"], 2),
             "equity": round(PAPER_STATE["last_equity"], 2),
