@@ -47,12 +47,12 @@ PAPER_STATE = {
     "pnl": 0.0,
 }
 
-# how much to use per paper trade (we keep this, but we hide complexity in UI)
+# how much to use per paper trade
 PAPER_TRADE_DOLLARS = 25.0
 
 # toggles
-AUTO_PAPER = False   # (not used by default, we do manual button)
-AUTO_REAL = False    # “real auto: on/off” button sets this
+AUTO_PAPER = False
+AUTO_REAL = False
 
 # ---------------- HELPERS ----------------
 async def fetch_spot_price(symbol: str) -> float:
@@ -64,74 +64,114 @@ async def fetch_spot_price(symbol: str) -> float:
     return 0.0
 
 
-async def fetch_candles(symbol: str, tf: str):
-    """
-    Proper 1D, 1W, 1M, 6M, 1Y using Coinbase Exchange candles.
-    6M and 1Y will now be different because we pass start/end.
-    """
-    # seconds per candle
-    if tf == "1D":
-        gran = 60 * 15  # 15m
-        start = None
-        end = None
-    elif tf == "1W":
-        gran = 60 * 60  # 1h
-        start = None
-        end = None
-    elif tf == "1M":
-        gran = 60 * 60 * 6  # 6h
-        start = None
-        end = None
-    elif tf == "6M":
-        gran = 60 * 60 * 24  # daily
-        end_dt = datetime.now(timezone.utc)
-        start_dt = end_dt - timedelta(days=180)
-        start = start_dt.isoformat()
-        end = end_dt.isoformat()
-    elif tf == "1Y":
-        gran = 60 * 60 * 24  # daily
-        end_dt = datetime.now(timezone.utc)
-        start_dt = end_dt - timedelta(days=365)
-        start = start_dt.isoformat()
-        end = end_dt.isoformat()
-    else:
-        gran = 60 * 15
-        start = None
-        end = None
-
+async def _fetch_gdax_chunk(symbol: str, gran: int, start_iso: str = None, end_iso: str = None):
     base_url = f"https://api.exchange.coinbase.com/products/{symbol}/candles?granularity={gran}"
-
-    if start and end:
-        url = f"{base_url}&start={start}&end={end}"
+    if start_iso and end_iso:
+        url = f"{base_url}&start={start_iso}&end={end_iso}"
     else:
         url = base_url
 
+    async with httpx.AsyncClient(timeout=6.0) as client:
+        r = await client.get(url, headers={"User-Agent": "cb-bot"})
+    if r.status_code != 200:
+        return None
+    data = r.json()
+    # sort oldest -> newest
+    data.sort(key=lambda x: x[0])
+    candles = []
+    for c in data:
+        candles.append(
+            {
+                "t": c[0],
+                "o": c[3],
+                "h": c[2],
+                "l": c[1],
+                "c": c[4],
+            }
+        )
+    return candles
+
+
+async def fetch_candles(symbol: str, tf: str):
+    """
+    Proper 1D, 1W, 1M, 6M, 1Y.
+    1Y is now fetched in 180-day chunks so we don't hit the 300-candle limit.
+    """
     try:
-        async with httpx.AsyncClient(timeout=6.0) as client:
-            r = await client.get(url, headers={"User-Agent": "cb-bot"})
-        if r.status_code == 200:
-            raw = r.json()
-            raw.sort(key=lambda x: x[0])  # oldest -> newest
-            candles = []
-            for c in raw:
-                candles.append(
-                    {
-                        "t": c[0],
-                        "o": c[3],
-                        "h": c[2],
-                        "l": c[1],
-                        "c": c[4],
-                    }
+        # ------------- short timeframes -------------
+        if tf == "1D":
+            gran = 60 * 15  # 15m
+            data = await _fetch_gdax_chunk(symbol, gran)
+            if data:
+                return data, False
+
+        elif tf == "1W":
+            gran = 60 * 60  # 1h
+            data = await _fetch_gdax_chunk(symbol, gran)
+            if data:
+                return data, False
+
+        elif tf == "1M":
+            gran = 60 * 60 * 6  # 6h
+            data = await _fetch_gdax_chunk(symbol, gran)
+            if data:
+                return data, False
+
+        # ------------- 6M -------------
+        elif tf == "6M":
+            gran = 60 * 60 * 24  # daily
+            end_dt = datetime.now(timezone.utc)
+            start_dt = end_dt - timedelta(days=180)
+            data = await _fetch_gdax_chunk(
+                symbol,
+                gran,
+                start_dt.isoformat(),
+                end_dt.isoformat(),
+            )
+            if data:
+                return data, False
+
+        # ------------- 1Y (CHUNKED) -------------
+        elif tf == "1Y":
+            gran = 60 * 60 * 24  # daily
+            end_dt = datetime.now(timezone.utc)
+            start_dt = end_dt - timedelta(days=365)
+
+            # we'll walk backward in 180-day windows
+            all_candles = []
+            cursor_end = end_dt
+            while cursor_end > start_dt:
+                chunk_start = max(start_dt, cursor_end - timedelta(days=180))
+                chunk = await _fetch_gdax_chunk(
+                    symbol,
+                    gran,
+                    chunk_start.isoformat(),
+                    cursor_end.isoformat(),
                 )
-            if candles:
-                return candles, False
+                if chunk:
+                    all_candles.extend(chunk)
+                # move cursor
+                cursor_end = chunk_start
+
+            if all_candles:
+                # de-dupe + sort
+                # some overlap can happen, so keep newest per timestamp
+                tmp = {}
+                for c in all_candles:
+                    tmp[c["t"]] = c
+                merged = list(tmp.values())
+                merged.sort(key=lambda x: x["t"])
+                return merged, False
+
+        # if we got here, we failed -> fall through to mock
     except Exception:
         pass
 
-    # fallback mock
+    # ------------------- FALLBACK MOCK -------------------
     base_price = LAST_PRICES.get(symbol, 100.0)
     mock = []
     price = base_price
+    gran = 60 * 60 * 24
     for i in range(80):
         if i % 2 == 0:
             price *= 1.003
@@ -160,12 +200,6 @@ def recompute_paper_equity():
 
 
 def do_one_paper_cycle():
-    """
-    What a single 'Paper Trade' button does.
-    - find dip coin (< -1%)
-    - find rip coin (> +1.2%)
-    - buy dip, sell rip
-    """
     if not LAST_PRICES:
         return {"did_trade": False, "reason": "no prices"}
 
@@ -178,13 +212,13 @@ def do_one_paper_cycle():
     biggest_rip_pct = 0
 
     for sym, price in items:
-      pct = (price - avg) / avg * 100
-      if pct < biggest_drop_pct:
-          biggest_drop_pct = pct
-          biggest_drop_sym = sym
-      if pct > biggest_rip_pct:
-          biggest_rip_pct = pct
-          biggest_rip_sym = sym
+        pct = (price - avg) / avg * 100
+        if pct < biggest_drop_pct:
+            biggest_drop_pct = pct
+            biggest_drop_sym = sym
+        if pct > biggest_rip_pct:
+            biggest_rip_pct = pct
+            biggest_rip_sym = sym
 
     did = False
 
@@ -263,13 +297,6 @@ async def paper_stats():
 
 @app.post("/paper-config")
 async def paper_config(req: Request):
-    """
-    body can have:
-    {
-      "initial_balance": 2000,
-      "trade_dollars": 25  (optional)
-    }
-    """
     global PAPER_TRADE_DOLLARS
     data = await req.json()
     init_bal = data.get("initial_balance")
@@ -338,12 +365,8 @@ async def real_auto_toggle(req: Request):
 
 @app.post("/run-bot")
 async def run_bot():
-    # auto paper (if we ever want to turn it on later)
     if AUTO_PAPER:
         do_one_paper_cycle()
-
-    # auto real (placeholder)
     if AUTO_REAL:
-        # here is where you'd place real order logic
         return {"auto_real": True, "status": "would place real orders here"}
     return {"status": "idle"}
