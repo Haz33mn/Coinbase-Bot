@@ -1,16 +1,24 @@
+# app.py
 import os
 import json
-from pathlib import Path
+import logging
+from io import StringIO
+from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
-from typing import Any, Dict, List
 
-import requests  # make sure `requests` is in requirements.txt
-
-from fastapi import FastAPI, Body
+from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from pydantic import BaseModel
+import httpx
 
-app = FastAPI()
+# this is the official SDK: https://github.com/coinbase/coinbase-advanced-py
+# make sure requirements.txt has: fastapi uvicorn httpx coinbase-advanced-py
+from coinbase.rest import RESTClient
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("coinbase-bot-backend")
+
+app = FastAPI(title="Coinbase Bot Backend")
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,267 +27,240 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-STATE_FILE = Path("state.json")
-COINBASE_PRODUCTS_URL = "https://api.exchange.coinbase.com/products"
+# ────────────────────────────────────────────────────────────────
+# ENV + GLOBALS
+# ────────────────────────────────────────────────────────────────
+COINBASE_PRICE_URL = "https://api.coinbase.com/v2/prices/{product_id}/spot"
+
+FEE_RATE = float(os.getenv("ESTIMATED_FEE_RATE", "0.005"))
+RAW_KEY_JSON = os.getenv("COINBASE_API_KEY_JSON")
+REAL_TRADING_ENABLED = os.getenv("REAL_TRADING_ENABLED", "false").lower() == "true"
+ADMIN_CONFIRM_TOKEN = os.getenv("ADMIN_CONFIRM_TOKEN")
+
+if not RAW_KEY_JSON:
+    logger.warning("⚠️  COINBASE_API_KEY_JSON is not set in environment!")
+
+# keep the last 50 real trades in memory so UI can show them
+REAL_TRADE_LOG: List[Dict[str, Any]] = []
 
 
-def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def default_state() -> Dict[str, Any]:
-    return {
-        "connected": False,
-        "coins": [],
-        "selected": "BTC-USD",
-        "real_auto": False,
-        "real_trades": [],
-        "last_update": now_iso(),
-    }
-
-
-def load_state() -> Dict[str, Any]:
-    if STATE_FILE.exists():
-        try:
-            return json.loads(STATE_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            return default_state()
-    return default_state()
-
-
-def save_state(state: Dict[str, Any]) -> None:
-    STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
-
-
-STATE = load_state()
-
-
-# ---------- coinbase sync ----------
-
-def fetch_coinbase_usd_markets() -> List[Dict[str, Any]]:
+def get_cb_client() -> RESTClient:
     """
-    Pull all products from Coinbase Exchange, keep only USD quote ones,
-    and build our internal coin objects.
+    Build a Coinbase REST client from the JSON the user pasted into
+    the Render env var COINBASE_API_KEY_JSON.
+    """
+    if not RAW_KEY_JSON:
+        raise RuntimeError("COINBASE_API_KEY_JSON not set")
+    # user maybe pasted with single quotes – normalize
+    raw = RAW_KEY_JSON.strip()
+    if raw.startswith("'") and raw.endswith("'"):
+        raw = raw[1:-1]
+    if raw and raw[0] != "{" and "'" in raw:
+        raw = raw.replace("'", '"')
+    return RESTClient(key_file=StringIO(raw))
+
+
+# ────────────────────────────────────────────────────────────────
+# MODELS
+# ────────────────────────────────────────────────────────────────
+class SimulateOrderRequest(BaseModel):
+    product_id: str
+    side: str
+    usd_amount: float
+    fee_rate: Optional[float] = None
+
+
+class OrderRequest(BaseModel):
+    product_id: str
+    side: str   # "buy" or "sell"
+    usd_amount: float
+
+
+# ────────────────────────────────────────────────────────────────
+# BASIC ENDPOINTS
+# ────────────────────────────────────────────────────────────────
+@app.get("/health")
+def health():
+    return {"status": "ok", "real_trading": REAL_TRADING_ENABLED}
+
+
+@app.get("/api/key-check")
+def key_check():
+    try:
+        client = get_cb_client()
+        # just test a cheap call
+        _ = client.get_accounts(limit=1)
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+# ────────────────────────────────────────────────────────────────
+# LIST ALL COINBASE PRODUCTS (this is what you asked for)
+# ────────────────────────────────────────────────────────────────
+@app.get("/api/products")
+def list_products():
+    """
+    Pull **all** products from Coinbase Advanced and return only the ones
+    you can trade against USD.
     """
     try:
-        resp = requests.get(COINBASE_PRODUCTS_URL, timeout=5)
-        resp.raise_for_status()
-        products = resp.json()
-    except Exception:
-        # if Coinbase is down, keep whatever we had
-        return []
+        client = get_cb_client()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"client init failed: {e}")
 
-    coins: List[Dict[str, Any]] = []
-    for p in products:
-        # symbol is like "BTC-USD"
-        if p.get("quote_currency") != "USD":
-            continue
-        symbol = p.get("id")
-        if not symbol:
-            continue
-
-        # try to get a price (public ticker)
-        price = 0.0
-        try:
-            t = requests.get(
-                f"https://api.exchange.coinbase.com/products/{symbol}/ticker",
-                timeout=4,
-            )
-            if t.status_code == 200:
-                jt = t.json()
-                price = float(jt.get("price") or 0.0)
-        except Exception:
-            pass
-
-        coins.append(
-            {
-                "symbol": symbol,
-                "price": price,
-                "signal": "HOLD",
-                "conf": 50,
-            }
-        )
-
-    return coins
+    products = client.get_products()  # SDK call
+    out = []
+    # products.products is a list of product objects
+    for p in products.products:
+        # pick what the frontend needs
+        if getattr(p, "quote_currency_id", None) == "USD":
+            out.append({
+                "product_id": p.product_id,
+                "price": p.price,
+                "base": p.base_currency_id,
+                "quote": p.quote_currency_id,
+            })
+    # sort for nice UI
+    out.sort(key=lambda x: x["product_id"])
+    return {"products": out}
 
 
-def ensure_coins():
-    """
-    On startup or when /sync-coins is hit, make sure we have
-    *all* Coinbase USD markets.
-    """
-    global STATE
-    coins = fetch_coinbase_usd_markets()
-    if coins:
-        # if we already had a selected coin, keep it if it still exists
-        prev_selected = STATE.get("selected") or "BTC-USD"
-        STATE["coins"] = sorted(coins, key=lambda c: c["symbol"])
-        if any(c["symbol"] == prev_selected for c in STATE["coins"]):
-            STATE["selected"] = prev_selected
-        else:
-            STATE["selected"] = STATE["coins"][0]["symbol"]
-        STATE["connected"] = True
-        STATE["last_update"] = now_iso()
-        save_state(STATE)
+# ────────────────────────────────────────────────────────────────
+# PUBLIC PRICE (still useful for chart fallback)
+# ────────────────────────────────────────────────────────────────
+@app.get("/api/price/{product_id}")
+async def get_current_price(product_id: str):
+    url = COINBASE_PRICE_URL.format(product_id=product_id)
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(url)
+        if r.status_code != 200:
+            raise HTTPException(status_code=502, detail=f"price fetch failed: {r.text}")
+        amt = float(r.json()["data"]["amount"])
+        return {"product_id": product_id, "spot": amt}
+
+
+# ────────────────────────────────────────────────────────────────
+# SIMULATE (for fee check)
+# ────────────────────────────────────────────────────────────────
+@app.post("/api/simulate-order")
+async def simulate_order(req: SimulateOrderRequest):
+    # get real price from public
+    url = COINBASE_PRICE_URL.format(product_id=req.product_id)
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(url)
+        r.raise_for_status()
+        price = float(r.json()["data"]["amount"])
+
+    fee_rate = req.fee_rate if req.fee_rate is not None else FEE_RATE
+    usd = float(req.usd_amount)
+    fee_usd = usd * fee_rate
+    if req.side.lower() == "buy":
+        usd_after_fee = max(0.0, usd - fee_usd)
+        coin_amount = usd_after_fee / price
     else:
-        # no internet / no Coinbase -> fall back to small static list
-        if not STATE.get("coins"):
-            STATE["connected"] = False
-            STATE["coins"] = [
-                {"symbol": "BTC-USD", "price": 109_987.035, "signal": "HOLD", "conf": 50},
-                {"symbol": "ETH-USD", "price": 3_828.332, "signal": "HOLD", "conf": 50},
-            ]
-            STATE["selected"] = "BTC-USD"
-            STATE["last_update"] = now_iso()
-            save_state(STATE)
+        # selling – we just report the fee and how much you'd get
+        usd_after_fee = max(0.0, usd - fee_usd)
+        coin_amount = usd_after_fee / price
 
-
-# do it once on boot
-ensure_coins()
-
-
-# ---------- history generator ----------
-
-def _lcg(seed: int):
-    a, c, m = 1103515245, 12345, 2**31
-    x = seed
-    while True:
-        x = (a * x + c) % m
-        yield x / m
-
-
-def make_history(symbol: str, tf: str) -> List[Dict[str, float]]:
-    # more points for longer TFs
-    if tf == "1D":
-        n, vol = 96, 0.002
-    elif tf == "1W":
-        n, vol = 140, 0.0035
-    elif tf == "1M":
-        n, vol = 170, 0.005
-    elif tf == "6M":
-        n, vol = 210, 0.006
-    else:  # 1Y
-        n, vol = 240, 0.007
-
-    # base price from state if we have it
-    base_price = 100.0
-    for c in STATE.get("coins", []):
-        if c["symbol"] == symbol:
-            base_price = float(c.get("price") or 100.0)
-            break
-
-    seed = abs(hash(symbol + tf)) % (2**31 - 1)
-    rnd = _lcg(seed)
-
-    price = base_price
-    out: List[Dict[str, float]] = []
-    for i in range(n):
-        r = next(rnd) - 0.5
-        change = price * vol * r * 2.0
-        price = max(0.0001, price + change)
-        high = price * (1 + abs(r) * 0.25)
-        low = price * (1 - abs(r) * 0.25)
-        open_ = price * (1 - r * 0.1)
-        out.append(
-            {
-                "t": i,
-                "o": round(open_, 6),
-                "h": round(high, 6),
-                "l": round(low, 6),
-                "c": round(price, 6),
-            }
-        )
-    return out
-
-
-# ---------- routes ----------
-
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    static_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
-    return FileResponse(static_path)
-
-
-@app.get("/state")
-async def get_state():
     return {
-        "connected": STATE.get("connected", False),
-        "coins": STATE.get("coins", []),
-        "selected": STATE.get("selected"),
-        "real_auto": STATE.get("real_auto", False),
-        "real_trades": (STATE.get("real_trades") or [])[-25:][::-1],
-        "last_update": STATE.get("last_update"),
+        "product_id": req.product_id.upper(),
+        "side": req.side.lower(),
+        "spot_price": price,
+        "usd_requested": usd,
+        "fee_rate": fee_rate,
+        "fee_usd": round(fee_usd, 8),
+        "usd_after_fee": round(usd_after_fee, 8),
+        "estimated_coin_amount": round(coin_amount, 12),
     }
 
 
-@app.post("/select")
-async def select_coin(payload: Dict[str, str] = Body(...)):
-    sym = payload.get("symbol")
-    if not sym:
-        return {"ok": False, "error": "symbol required"}
+# ────────────────────────────────────────────────────────────────
+# REAL ORDER (this is the part you wanted “to just work”)
+# ────────────────────────────────────────────────────────────────
+@app.post("/api/order")
+def place_order(
+    order: OrderRequest,
+    x_admin_token: Optional[str] = Header(None),
+):
+    # 1) safety gates
+    if not REAL_TRADING_ENABLED:
+        raise HTTPException(status_code=403, detail="REAL_TRADING_ENABLED is false on the server")
 
-    # if symbol not in list but user asked for it, we try to add it
-    if not any(c["symbol"] == sym for c in STATE["coins"]):
-        # try to fetch price for that exact product
-        try:
-            t = requests.get(
-                f"https://api.exchange.coinbase.com/products/{sym}/ticker", timeout=4
+    if not ADMIN_CONFIRM_TOKEN:
+        raise HTTPException(status_code=403, detail="ADMIN_CONFIRM_TOKEN is not set on the server")
+
+    if x_admin_token != ADMIN_CONFIRM_TOKEN:
+        raise HTTPException(status_code=403, detail="bad admin token")
+
+    # 2) build client
+    try:
+        client = get_cb_client()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"coinbase client init failed: {e}")
+
+    product_id = order.product_id.upper()
+    side = order.side.lower()
+    usd_amount = float(order.usd_amount)
+    if usd_amount <= 0:
+        raise HTTPException(status_code=400, detail="usd_amount must be > 0")
+
+    # 3) actually send to Coinbase using the SDK
+    # buy = quote_size (usd), sell = base size (coin)
+    # so for SELL we need to know how much coin to sell -> we fetch price to convert
+    client_order_id = ""  # let Coinbase generate
+
+    try:
+        if side == "buy":
+            # market buy spending X USD
+            res = client.market_order_buy(
+                client_order_id=client_order_id,
+                product_id=product_id,
+                quote_size=str(usd_amount),
             )
-            if t.status_code == 200:
-                jt = t.json()
-                price = float(jt.get("price") or 0.0)
-            else:
-                price = 0.0
-        except Exception:
-            price = 0.0
-        STATE["coins"].append(
-            {"symbol": sym, "price": price, "signal": "HOLD", "conf": 50}
-        )
+        elif side == "sell":
+            # get spot to convert USD -> coin
+            # (you can later change this to "sell everything in the account")
+            price_url = COINBASE_PRICE_URL.format(product_id=product_id)
+            with httpx.Client(timeout=10) as hc:
+                pr = hc.get(price_url)
+                pr.raise_for_status()
+                price_val = float(pr.json()["data"]["amount"])
+            base_size = usd_amount / price_val
+            res = client.market_order_sell(
+                client_order_id=client_order_id,
+                product_id=product_id,
+                size=str(base_size),
+            )
+        else:
+            raise HTTPException(status_code=400, detail="side must be 'buy' or 'sell'")
+    except Exception as e:
+        logger.exception("real order failed")
+        raise HTTPException(status_code=502, detail=f"Coinbase order failed: {e}")
 
-    STATE["selected"] = sym
-    STATE["last_update"] = now_iso()
-    save_state(STATE)
-    return {"ok": True, "selected": sym}
-
-
-@app.get("/history/{symbol}")
-async def history(symbol: str, tf: str = "1D"):
-    return {"symbol": symbol, "tf": tf, "points": make_history(symbol, tf)}
-
-
-@app.post("/real/toggle")
-async def real_toggle(payload: Dict[str, Any] = Body(...)):
-    on = bool(payload.get("on", False))
-    STATE["real_auto"] = on
-    STATE["last_update"] = now_iso()
-    save_state(STATE)
-    return {"ok": True, "real_auto": on}
-
-
-@app.post("/real/trade")
-async def real_trade(payload: Dict[str, Any] = Body(...)):
-    """
-    Your real trading worker / webhook should call this EVERY time it
-    actually buys/sells on Coinbase. This is just a logger.
-    """
-    symbol = payload.get("symbol", STATE.get("selected", "BTC-USD"))
-    side = (payload.get("side") or "BUY").upper()
-    price = float(payload.get("price") or 0)
-    qty = float(payload.get("qty") or 0)
-    trade = {
-      "symbol": symbol,
-      "side": side,
-      "price": price,
-      "qty": qty,
-      "at": now_iso(),
+    # 4) log it in memory for the UI
+    trade_entry = {
+        "product_id": product_id,
+        "side": side,
+        "usd_amount": usd_amount,
+        "coin_amount": res.order.total_quantity if hasattr(res, "order") else None,
+        "placed_at": utc_now_iso(),
+        "raw": res.to_dict() if hasattr(res, "to_dict") else str(res),
     }
-    STATE.setdefault("real_trades", []).append(trade)
-    STATE["last_update"] = now_iso()
-    save_state(STATE)
-    return {"ok": True, "trade": trade}
+    REAL_TRADE_LOG.insert(0, trade_entry)
+    # keep only last 50
+    del REAL_TRADE_LOG[50:]
+
+    return {"status": "ok", "from": "coinbase", "result": trade_entry}
 
 
-@app.post("/sync-coins")
-async def sync_coins():
-    ensure_coins()
-    return {"ok": True, "count": len(STATE.get("coins", []))}
+# ────────────────────────────────────────────────────────────────
+# FRONTEND CAN CALL THIS TO FILL THE “real trades (latest)” LIST
+# ────────────────────────────────────────────────────────────────
+@app.get("/api/real-trades")
+def get_real_trades():
+    return {"trades": REAL_TRADE_LOG}
