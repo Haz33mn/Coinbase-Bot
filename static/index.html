@@ -7,180 +7,147 @@
   <style>
     :root {
       --bg: #000;
-      --card: #101010;
-      --card2: #151515;
-      --muted: rgba(255, 255, 255, 0.3);
-      --line: #45d2c8;
-      --green: #11d881;
-      --red: #ff6b6b;
-      --outline: rgba(255, 255, 255, 0.04);
+      --surface: #121212;
+      --surface2: #161616;
+      --accent: #00f0ff;
+      --accent-soft: rgba(0, 240, 255, 0.15);
+      --green: #18d46a;
+      --red: #ff5c5c;
+      --muted: rgba(255, 255, 255, 0.35);
+      --text: #fff;
+      --radius: 14px;
     }
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       background: var(--bg);
-      color: #fff;
+      color: var(--text);
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       min-height: 100vh;
       display: flex;
       justify-content: center;
-      padding: 1.5rem 1rem 4rem;
+      padding: 1.5rem 0 4rem;
     }
     .app-shell {
       width: min(1200px, 100%);
-      background: var(--card);
-      border-radius: 18px;
-      border: 1px solid rgba(255, 255, 255, 0.04);
-      box-shadow: 0 0 45px rgba(0, 0, 0, 0.4);
+      background: rgba(18,18,18,0.4);
+      border: 1px solid rgba(255,255,255,0.03);
+      border-radius: 20px;
       overflow: hidden;
     }
-    .topbar {
+    header {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 1.25rem 1.25rem 0.5rem;
+      gap: .75rem;
+      padding: 1.25rem 1.75rem 0.75rem;
     }
-    .status-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 9999px;
-      background: #f43f5e;
+    .dot {
+      width: 10px; height: 10px;
+      border-radius: 999px;
+      background: #fe3434;
     }
-    .status-dot.online {
-      background: #22c55e;
+    .dot.online { background: #1be26a; }
+    .title { font-weight: 650; }
+    .refresh-btn {
+      margin-left: auto;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: .85rem;
     }
-    .title {
-      font-weight: 600;
-      font-size: 1.05rem;
-    }
-    .main-row {
-      display: flex;
+    .body-row {
+      display: grid;
+      grid-template-columns: 240px 1fr;
       gap: 1.25rem;
-      padding: 0 1.25rem 0.75rem;
-      margin-top: 0.75rem;
+      padding: 0 1.75rem 1.25rem;
     }
-    .coin-list {
-      width: 210px;
-      background: rgba(255, 255, 255, 0.01);
-      border: 1px solid rgba(255, 255, 255, 0.02);
-      border-radius: 14px;
-      padding: 0.75rem 0.5rem 0.75rem 0.75rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    .coin-search {
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.04);
-      border-radius: 9999px;
-      padding: 0.3rem 0.7rem;
-      font-size: 0.7rem;
-      color: #fff;
-      outline: none;
-    }
-    .coin-scroll {
+    .coins-panel {
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.02);
+      border-radius: 18px;
       overflow-y: auto;
-      max-height: 370px;
-      padding-right: 0.4rem;
+      max-height: 360px;
+    }
+    .coins-panel input {
+      width: 100%;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.02);
+      border-radius: 12px;
+      padding: .45rem .6rem;
+      color: #fff;
+      margin: .75rem .75rem 0;
+      outline: none;
+      font-size: .75rem;
     }
     .coin-item {
       display: flex;
-      align-items: center;
       justify-content: space-between;
-      gap: 0.25rem;
-      padding: 0.4rem 0.4rem 0.4rem 0.6rem;
-      border-radius: 10px;
+      align-items: center;
+      padding: .55rem .75rem;
+      gap: .75rem;
+      border-radius: 12px;
+      margin: .5rem .5rem 0;
       cursor: pointer;
-      transition: 0.12s ease-out;
+      transition: 0.1s ease;
     }
     .coin-item.active {
-      background: rgba(69, 210, 200, 0.16);
-      border: 1px solid rgba(69, 210, 200, 0.32);
+      background: rgba(0,240,255,0.1);
+      border: 1px solid rgba(0,240,255,0.25);
     }
-    .coin-left {
+    .coin-left { display: flex; flex-direction: column; gap: .2rem; }
+    .coin-name { font-size: .8rem; }
+    .coin-price { font-size: .65rem; color: var(--muted); }
+    .signal-pill {
+      font-size: .6rem;
+      padding: .2rem .5rem;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .signal-buy { background: rgba(24,212,106,0.15); border-color: rgba(24,212,106,0.35); }
+    .signal-sell { background: rgba(255,92,92,0.15); border-color: rgba(255,92,92,0.35); }
+
+    .chart-panel {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.02);
+      border-radius: 18px;
+      min-height: 360px;
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: .75rem;
+      padding: .75rem .75rem .25rem;
     }
-    .coin-symbol {
-      font-size: 0.68rem;
-    }
-    .coin-price {
-      font-size: 0.62rem;
-      color: rgba(255, 255, 255, 0.45);
-    }
-    .coin-signal {
-      font-size: 0.55rem;
-      padding: 2px 6px 2px 6px;
-      border-radius: 9999px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.03);
-      text-transform: uppercase;
-    }
-    .coin-signal.buy {
-      background: rgba(17, 216, 129, 0.18);
-      border-color: rgba(17, 216, 129, 0.35);
-    }
-    .coin-signal.sell {
-      background: rgba(255, 107, 107, 0.14);
-      border-color: rgba(255, 107, 107, 0.3);
-    }
-    .chart-card {
-      flex: 1;
-      background: rgba(255, 255, 255, 0.01);
-      border: 1px solid rgba(255, 255, 255, 0.02);
-      border-radius: 14px;
-      display: flex;
-      flex-direction: column;
-      min-height: 340px;
-      overflow: hidden;
-    }
-    .chart-header {
+    .chart-top {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 0.8rem 1rem 0.35rem;
-      gap: 1rem;
+      gap: .5rem;
     }
-    .chart-left {
+    .chart-coin-name { font-weight: 600; }
+    .tf-group, .type-group, .mode-group {
+      margin-left: auto;
       display: flex;
-      flex-direction: column;
-      gap: 2px;
+      gap: .4rem;
     }
-    .chart-symbol {
-      font-weight: 600;
-      font-size: 0.75rem;
-    }
-    .chart-price {
-      font-size: 0.7rem;
-      color: rgba(255, 255, 255, 0.4);
-    }
-    .chart-tabs,
-    .view-tabs {
-      display: flex;
-      gap: 0.35rem;
-    }
-    .chip {
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.03);
-      border-radius: 9999px;
-      padding: 3px 11px;
-      font-size: 0.6rem;
+    .btn-sm {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.03);
+      color: #fff;
+      border-radius: 999px;
+      font-size: .6rem;
+      padding: .2rem .5rem;
       cursor: pointer;
-      transition: 0.12s;
     }
-    .chip.active {
-      background: rgba(69, 210, 200, 0.15);
-      border: 1px solid rgba(69, 210, 200, 0.35);
+    .btn-sm.active {
+      background: rgba(0,240,255,0.15);
+      border-color: rgba(0,240,255,0.35);
     }
-    /* THIS FIXES THE OVERFLOW */
-    .chart-body {
+    .chart-canvas-wrap {
+      flex: 1;
+      border-radius: 14px;
+      background: radial-gradient(circle at top, rgba(0,240,255,0.08), rgba(0,0,0,0));
       position: relative;
-      height: 260px;        /* fixed drawing area */
-      overflow: hidden;     /* clip the line/candles */
-      padding: 0 0.5rem 0.5rem;
+      overflow: hidden;
     }
     canvas {
       width: 100%;
@@ -188,421 +155,357 @@
       display: block;
     }
 
-    /* bottom panel */
-    .paper-panel {
-      display: flex;
-      gap: 0.75rem;
-      padding: 0.75rem 1.25rem 0.5rem;
+    /* paper/real info row */
+    .info-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 1rem;
+      padding: 0 1.75rem .75rem;
+      margin-top: .4rem;
     }
-    .paper-box {
-      background: rgba(255, 255, 255, 0.01);
-      border: 1px solid rgba(255, 255, 255, 0.01);
-      border-radius: 12px;
-      padding: 0.4rem 0.65rem 0.55rem;
-      flex: 1;
-      min-height: 54px;
+    .info-card {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.02);
+      border-radius: 16px;
+      padding: .55rem .75rem .55rem;
+      min-height: 70px;
     }
-    .paper-label {
-      font-size: 0.52rem;
+    .info-label {
+      font-size: .6rem;
+      color: var(--muted);
       text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.35);
-      letter-spacing: 0.04em;
+      letter-spacing: .06em;
     }
-    .paper-value {
-      margin-top: 2px;
-      font-size: 0.78rem;
+    .info-value {
+      font-size: .9rem;
+      margin-top: .35rem;
     }
-    .btn-small {
-      background: #fff;
-      color: #000;
-      border: none;
-      border-radius: 9999px;
-      font-size: 0.55rem;
-      padding: 3px 10px;
-      cursor: pointer;
+    .info-value.green { color: var(--green); }
+    .info-value.red { color: var(--red); }
+
+    .trades-row {
+      padding: 0 1.75rem .5rem;
     }
-    .paper-trades-log {
-      background: rgba(255, 255, 255, 0.01);
-      border: 1px solid rgba(255, 255, 255, 0.01);
-      border-radius: 12px;
-      padding: 0.4rem 0.65rem 0.35rem;
-      margin: 0 1.25rem 0.5rem;
+    .trades-box {
+      background: rgba(0,0,0,0.25);
+      border: 1px solid rgba(255,255,255,0.02);
+      border-radius: 16px;
       min-height: 48px;
-      font-size: 0.6rem;
-      color: rgba(255, 255, 255, 0.5);
+      font-size: .7rem;
+      padding: .4rem .75rem .3rem;
     }
-    .paper-trade-item {
+    .trade-line {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      gap: 0.5rem;
-      margin-bottom: 2px;
+      gap: .35rem;
+      margin-bottom: .25rem;
     }
-    .paper-side {
-      font-size: 0.53rem;
-      padding: 2px 6px;
-      border-radius: 9999px;
+    .pill {
+      font-size: .55rem;
+      padding: .1rem .4rem .1rem;
+      border-radius: 999px;
     }
-    .paper-side.buy {
-      background: rgba(17, 216, 129, 0.12);
-      color: #fff;
-    }
-    .paper-side.sell {
-      background: rgba(255, 107, 107, 0.12);
-      color: #fff;
+    .pill.paper { background: rgba(0,240,255,0.12); }
+    .pill.real { background: rgba(255,188,59,0.12); }
+    .pill.buy { background: rgba(24,212,106,0.18); }
+    .pill.sell { background: rgba(255,92,92,0.2); }
+    .ts { color: var(--muted); }
+
+    .footer-row {
+      padding: 0 1.75rem 1.3rem;
     }
     .refresh-bar {
-      display: block;
+      width: 100%;
+      height: 14px;
       background: #fff;
-      height: 12px;
-      border-radius: 9999px;
-      margin: 0.3rem 1.25rem 0.5rem;
+      border-radius: 999px;
       position: relative;
-      overflow: hidden;
     }
-    .refresh-text {
-      position: absolute;
-      inset: 0;
-      font-size: 0.6rem;
-      text-align: center;
-      line-height: 12px;
-      color: #000;
-      mix-blend-mode: multiply;
+    .updated {
+      font-size: .6rem;
+      color: var(--muted);
+      margin-top: .35rem;
     }
-    .foot {
-      font-size: 0.5rem;
-      color: rgba(255, 255, 255, 0.25);
-      padding: 0 1.25rem 1rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .mode-btn {
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.03);
-      border-radius: 9999px;
-      padding: 4px 12px;
-      font-size: 0.6rem;
-      cursor: pointer;
-      color: rgba(255, 255, 255, 0.7);
-    }
-    .mode-btn.active {
-      background: rgba(69, 210, 200, 0.18);
-      border-color: rgba(69, 210, 200, 0.35);
-      color: #fff;
-    }
-    @media (max-width: 1020px) {
-      .main-row { flex-direction: column; }
-      .coin-list { width: 100%; flex-direction: row; }
-      .coin-scroll { max-height: 170px; white-space: nowrap; display: flex; gap: 0.5rem; }
-      .chart-body { height: 230px; }
-      .paper-panel { flex-wrap: wrap; }
+
+    @media (max-width: 980px) {
+      .body-row { grid-template-columns: 1fr; }
+      .info-row { grid-template-columns: 1fr 1fr; }
     }
   </style>
 </head>
 <body>
   <div class="app-shell">
-    <div class="topbar">
-      <div id="statusDot" class="status-dot"></div>
+    <header>
+      <div id="conn-dot" class="dot"></div>
       <div class="title">My Coinbase Bot</div>
-    </div>
+      <button id="reload-btn" class="refresh-btn">⟳</button>
+    </header>
 
-    <div class="main-row">
-      <div class="coin-list">
-        <input id="search" class="coin-search" placeholder="search coin..." />
-        <div id="coinList" class="coin-scroll"></div>
+    <div class="body-row">
+      <div class="coins-panel">
+        <input id="search" placeholder="search coin..." />
+        <div id="coin-list"></div>
       </div>
-      <div class="chart-card">
-        <div class="chart-header">
-          <div class="chart-left">
-            <div id="sym" class="chart-symbol">BTC-USD</div>
-            <div id="symPrice" class="chart-price">$0</div>
+      <div class="chart-panel">
+        <div class="chart-top">
+          <div>
+            <div id="chart-coin" class="chart-coin-name">BTC-USD</div>
+            <div id="chart-price" style="font-size:.7rem;color:var(--muted)">$0</div>
           </div>
-          <div class="chart-tabs">
-            <div data-tf="1d" class="chip tf active">1D</div>
-            <div data-tf="1w" class="chip tf">1W</div>
-            <div data-tf="1m" class="chip tf">1M</div>
-            <div data-tf="6m" class="chip tf">6M</div>
-            <div data-tf="1y" class="chip tf">1Y</div>
+          <div class="tf-group">
+            <button class="btn-sm tf-btn active" data-tf="1D">1D</button>
+            <button class="btn-sm tf-btn" data-tf="1W">1W</button>
+            <button class="btn-sm tf-btn" data-tf="1M">1M</button>
+            <button class="btn-sm tf-btn" data-tf="6M">6M</button>
+            <button class="btn-sm tf-btn" data-tf="1Y">1Y</button>
           </div>
-          <div class="view-tabs">
-            <div data-view="line" class="chip view active">Line</div>
-            <div data-view="candles" class="chip view">Candles</div>
+          <div class="type-group">
+            <button class="btn-sm type-btn active" data-type="line">Line</button>
+            <button class="btn-sm type-btn" data-type="candles">Candles</button>
           </div>
-          <div class="view-tabs">
-            <div id="paperBtn" class="mode-btn active">Paper</div>
-            <div id="realBtn" class="mode-btn">Real auto: OFF</div>
+          <div class="mode-group">
+            <button id="paper-btn" class="btn-sm active">Paper</button>
+            <button id="real-btn" class="btn-sm">Real auto: OFF</button>
           </div>
         </div>
-        <div class="chart-body">
-          <canvas id="chart"></canvas>
+        <div class="chart-canvas-wrap">
+          <canvas id="chart-canvas"></canvas>
         </div>
       </div>
     </div>
 
-    <div id="paperPanel" class="paper-panel">
-      <div class="paper-box">
-        <div class="paper-label">paper balance (USD)</div>
-        <div style="display:flex;gap:0.3rem;align-items:center;margin-top:3px;">
-          <input id="paperBalanceInput" value="1000" style="width:70px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:6px;padding:2px 4px;color:#fff;font-size:0.6rem;" />
-          <button id="setPaperBalance" class="btn-small">set</button>
+    <div class="info-row">
+      <div class="info-card">
+        <div class="info-label">paper balance (USD)</div>
+        <div style="display:flex;gap:.4rem;align-items:center;margin-top:.25rem;">
+          <input id="paper-balance-input" value="1000" style="width:80px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:.25rem .35rem;color:#fff;font-size:.7rem;outline:none;">
+          <button id="paper-balance-set" class="btn-sm">set</button>
         </div>
       </div>
-      <div class="paper-box">
-        <div class="paper-label">equity now</div>
-        <div id="equityNow" class="paper-value">$1,000.00</div>
+      <div class="info-card">
+        <div class="info-label">equity now</div>
+        <div id="equity-now" class="info-value">$0.00</div>
       </div>
-      <div class="paper-box">
-        <div class="paper-label">money earned</div>
-        <div id="moneyEarned" class="paper-value" style="color:var(--green);">+$0.00</div>
+      <div class="info-card">
+        <div class="info-label">money earned</div>
+        <div id="money-earned" class="info-value green">+0.00</div>
       </div>
-      <div class="paper-box">
-        <div class="paper-label">% gained</div>
-        <div id="pctGained" class="paper-value" style="color:var(--green);">0.00%</div>
-        <button id="paperAuto" class="mode-btn" style="margin-top:3px;">paper auto: OFF</button>
+      <div class="info-card">
+        <div class="info-label">% gained</div>
+        <div id="percent-gained" class="info-value green">+0.00%</div>
+        <button id="paper-auto-toggle" class="btn-sm" style="margin-top:.35rem;">paper auto: OFF</button>
       </div>
     </div>
 
-    <div id="paperTradesLog" class="paper-trades-log">no paper trades yet</div>
-
-    <div class="refresh-bar">
-      <div class="refresh-text">Refresh</div>
+    <div class="trades-row">
+      <div id="trades-box" class="trades-box">
+        no trades yet
+      </div>
     </div>
 
-    <div class="foot">
-      <div id="lastUpdated">updated --:--:--</div>
-      <div style="font-size:0.55rem;color:rgba(255,255,255,.3);">live from Coinbase</div>
+    <div class="footer-row">
+      <div class="refresh-bar" id="refresh-bar"></div>
+      <div id="updated" class="updated">updated --:--</div>
     </div>
   </div>
 
   <script>
-    const chartCanvas = document.getElementById('chart');
-    const ctx = chartCanvas.getContext('2d');
+    const API = "";
+    let CURRENT = {
+      state: null,
+      tf: "1D",
+      chartType: "line",
+      selected: "BTC-USD",
+    };
 
-    let state = null;
-    let currentSymbol = 'BTC-USD';
-    let currentTF = '1d';
-    let currentView = 'line';
-
-    function resizeCanvas() {
-      const parent = chartCanvas.parentElement;
-      chartCanvas.width = parent.clientWidth;
-      chartCanvas.height = parent.clientHeight;
-    }
-    window.addEventListener('resize', () => {
-      resizeCanvas();
-      if (state) drawChart(lastPoints);
-    });
-
-    let lastPoints = [];
-
-    function drawChart(data) {
-      if (!data || !data.points) return;
-      lastPoints = data;
-      resizeCanvas();
-      const w = chartCanvas.width;
-      const h = chartCanvas.height;
-      ctx.clearRect(0, 0, w, h);
-
-      const pts = data.points;
-      // padding so line NEVER goes under the border
-      const padL = 25, padR = 10, padT = 15, padB = 20;
-      const innerW = w - padL - padR;
-      const innerH = h - padT - padB;
-
-      // find min/max on CLOSE (index 4)
-      let min = Infinity, max = -Infinity;
-      pts.forEach(p => {
-        const v = p[4] ?? p[1] ?? p[0];
-        if (v < min) min = v;
-        if (v > max) max = v;
-      });
-      if (min === max) {
-        min -= 1; max += 1;
-      }
-
-      if (currentView === 'line') {
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = '#45d2c8';
-        ctx.beginPath();
-        pts.forEach((p, i) => {
-          const v = p[4] ?? p[1];
-          const x = padL + (i / Math.max(pts.length - 1, 1)) * innerW;
-          const y = padT + (1 - (v - min) / (max - min)) * innerH;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        });
-        ctx.stroke();
-      } else {
-        // candles
-        const barW = innerW / Math.max(pts.length, 1) * 0.6;
-        pts.forEach((p, i) => {
-          const [t, open, high, low, close] = p;
-          const x = padL + (i / Math.max(pts.length - 1, 1)) * innerW;
-          const toY = val => padT + (1 - (val - min) / (max - min)) * innerH;
-
-          const yHigh = toY(high);
-          const yLow = toY(low);
-          ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(x, yHigh);
-          ctx.lineTo(x, yLow);
-          ctx.stroke();
-
-          const yOpen = toY(open);
-          const yClose = toY(close);
-          const isUp = close >= open;
-          ctx.fillStyle = isUp ? '#11d881' : '#ff6b6b';
-          ctx.fillRect(x - barW / 2, Math.min(yOpen, yClose), barW, Math.abs(yClose - yOpen) || 3);
-        });
-      }
-    }
+    const coinListEl = document.getElementById("coin-list");
+    const chartCoinEl = document.getElementById("chart-coin");
+    const chartPriceEl = document.getElementById("chart-price");
+    const chartCanvas = document.getElementById("chart-canvas");
+    const updatedEl = document.getElementById("updated");
+    const paperBalanceInput = document.getElementById("paper-balance-input");
+    const equityNowEl = document.getElementById("equity-now");
+    const moneyEarnedEl = document.getElementById("money-earned");
+    const percentGainedEl = document.getElementById("percent-gained");
+    const tradesBox = document.getElementById("trades-box");
+    const paperAutoBtn = document.getElementById("paper-auto-toggle");
+    const paperBtn = document.getElementById("paper-btn");
+    const realBtn = document.getElementById("real-btn");
+    const ctx = chartCanvas.getContext("2d");
 
     async function fetchState() {
-      const res = await fetch('/state');
+      const res = await fetch(API + "/state");
       const data = await res.json();
-      state = data;
-      document.getElementById('statusDot').classList.toggle('online', !!data.connected);
+      CURRENT.state = data;
+      CURRENT.selected = data.selected || CURRENT.selected;
+      renderState();
+      fetchHistory(CURRENT.selected, CURRENT.tf);
+    }
 
-      // coins
-      const cl = document.getElementById('coinList');
-      cl.innerHTML = '';
-      data.coins.forEach(c => {
-        const div = document.createElement('div');
-        div.className = 'coin-item' + (c.symbol === data.selected ? ' active' : '');
-        div.onclick = () => {
-          currentSymbol = c.symbol;
-          loadChart();
-        };
-        const left = document.createElement('div');
-        left.className = 'coin-left';
-        left.innerHTML = `<div class="coin-symbol">${c.symbol}</div><div class="coin-price">$${c.price}</div>`;
-        const sig = document.createElement('div');
-        const s = (c.signal || 'HOLD').toLowerCase();
-        sig.className = 'coin-signal ' + (s === 'buy' ? 'buy' : s === 'sell' ? 'sell' : '');
-        sig.textContent = (c.signal || 'HOLD') + (c.confidence ? ' - ' + c.confidence + '%' : '');
-        div.appendChild(left);
-        div.appendChild(sig);
-        cl.appendChild(div);
+    async function fetchHistory(symbol, tf) {
+      const res = await fetch(API + `/history/${encodeURIComponent(symbol)}?tf=${tf}`);
+      const data = await res.json();
+      drawChart(data.points || []);
+    }
+
+    function renderState() {
+      const st = CURRENT.state;
+      // header dot
+      const dot = document.getElementById("conn-dot");
+      if (st.connected) dot.classList.add("online"); else dot.classList.remove("online");
+
+      // coin list
+      coinListEl.innerHTML = "";
+      (st.coins || []).forEach(c => {
+        const item = document.createElement("div");
+        item.className = "coin-item" + (c.symbol === st.selected ? " active" : "");
+        item.dataset.symbol = c.symbol;
+        item.innerHTML = `
+          <div class="coin-left">
+            <div class="coin-name">${c.symbol}</div>
+            <div class="coin-price">$${Number(c.price || 0).toLocaleString()}</div>
+          </div>
+          <div class="signal-pill ${c.signal === "BUY" ? "signal-buy" : c.signal === "SELL" ? "signal-sell" : ""}">
+            ${c.signal || "HOLD"} · ${c.conf || 50}%
+          </div>
+        `;
+        item.addEventListener("click", () => selectCoin(c.symbol));
+        coinListEl.appendChild(item);
       });
 
-      currentSymbol = data.selected || data.coins[0]?.symbol || 'BTC-USD';
-      document.getElementById('sym').textContent = currentSymbol;
-      const sel = data.coins.find(c => c.symbol === currentSymbol);
-      document.getElementById('symPrice').textContent = sel ? '$' + sel.price : '$0';
+      // top text
+      chartCoinEl.textContent = st.selected;
+      const coin = (st.coins || []).find(c => c.symbol === st.selected);
+      chartPriceEl.textContent = coin ? "$" + Number(coin.price || 0).toLocaleString() : "$0";
 
-      // paper stuff
-      document.getElementById('paperBalanceInput').value = data.paper_balance ?? 1000;
-      document.getElementById('equityNow').textContent = '$' + (data.paper_equity ?? 0).toFixed(2);
-      const pl = data.paper_pl ?? 0;
-      const pct = data.paper_pct ?? 0;
-      const me = document.getElementById('moneyEarned');
-      me.textContent = (pl >= 0 ? '+' : '') + pl.toFixed(2);
-      me.style.color = pl >= 0 ? 'var(--green)' : 'var(--red)';
-      const pg = document.getElementById('pctGained');
-      pg.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
-      pg.style.color = pct >= 0 ? 'var(--green)' : 'var(--red)';
+      // paper section
+      paperBalanceInput.value = st.paper_balance != null ? st.paper_balance : 1000;
+      equityNowEl.textContent = "$" + (st.paper_equity ?? 0).toFixed(2);
+      const pl = st.paper_pl ?? 0;
+      moneyEarnedEl.textContent = (pl >= 0 ? "+" : "-") + "$" + Math.abs(pl).toFixed(2);
+      moneyEarnedEl.className = "info-value " + (pl >= 0 ? "green" : "red");
+      const pct = st.paper_balance ? (pl / st.paper_balance) * 100 : 0;
+      percentGainedEl.textContent = (pct >= 0 ? "+" : "-") + Math.abs(pct).toFixed(2) + "%";
+      percentGainedEl.className = "info-value " + (pct >= 0 ? "green" : "red");
 
-      // paper trades
-      const log = document.getElementById('paperTradesLog');
-      const trades = data.paper_trades || [];
-      if (!trades.length) {
-        log.textContent = 'no paper trades yet';
-      } else {
-        log.innerHTML = '';
-        trades.forEach(t => {
-          const row = document.createElement('div');
-          row.className = 'paper-trade-item';
-          row.innerHTML = `
-            <div><span class="paper-side ${t.side.toLowerCase()}">${t.side}</span> ${t.symbol}</div>
-            <div>$${t.price}</div>
-            <div style="opacity:.4;font-size:.52rem;">${t.timestamp}</div>
-          `;
-          log.appendChild(row);
-        });
+      paperAutoBtn.textContent = "paper auto: " + (st.paper_auto ? "ON" : "OFF");
+      realBtn.textContent = "Real auto: " + (st.real_auto ? "ON" : "OFF");
+
+      // trades
+      const paperTrades = st.paper_trades || [];
+      const realTrades = st.real_trades || [];
+      let html = "";
+      paperTrades.forEach(t => {
+        html += `<div class="trade-line">
+          <span class="pill paper">PAPER</span>
+          <span class="pill ${t.side === "BUY" ? "buy" : "sell"}">${t.side}</span>
+          <b>${t.symbol}</b>
+          <span>${Number(t.qty || 0).toFixed(4)}</span>
+          <span>@ $${Number(t.price || 0).toFixed(2)}</span>
+          <span class="ts">${fmtTime(t.at)}</span>
+        </div>`;
+      });
+      realTrades.forEach(t => {
+        html += `<div class="trade-line">
+          <span class="pill real">REAL</span>
+          <span class="pill ${t.side === "BUY" ? "buy" : "sell"}">${t.side}</span>
+          <b>${t.symbol}</b>
+          <span>${Number(t.qty || 0).toFixed(4)}</span>
+          <span>@ $${Number(t.price || 0).toFixed(2)}</span>
+          <span class="ts">${fmtTime(t.at)}</span>
+        </div>`;
+      });
+      tradesBox.innerHTML = html || "no trades yet";
+
+      // updated
+      updatedEl.textContent = "updated " + (st.last_update ? new Date(st.last_update).toLocaleTimeString() : "--:--");
+    }
+
+    async function selectCoin(symbol) {
+      CURRENT.selected = symbol;
+      await fetch(API + "/select", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({symbol})
+      });
+      await fetchState();
+    }
+
+    function drawChart(points) {
+      const w = chartCanvas.clientWidth;
+      const h = chartCanvas.clientHeight;
+      chartCanvas.width = w * 2;
+      chartCanvas.height = h * 2;
+      ctx.scale(2,2);
+      ctx.clearRect(0,0,w,h);
+      if (!points.length) {
+        ctx.fillStyle = "rgba(255,255,255,0.12)";
+        ctx.fillText("no data…", 10, 20);
+        return;
       }
-
-      document.getElementById('lastUpdated').textContent =
-        'updated ' + new Date().toLocaleTimeString();
-
-      loadChart(false);
+      const max = Math.max(...points.map(p => p.c));
+      const min = Math.min(...points.map(p => p.c));
+      const pad = 14;
+      const usableW = w - pad*2;
+      const usableH = h - pad*2;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#38eaff";
+      ctx.beginPath();
+      points.forEach((p,i) => {
+        const x = pad + (i / Math.max(points.length-1,1)) * usableW;
+        const y = pad + (1 - (p.c - min) / Math.max((max-min), 0.0001)) * usableH;
+        if (i === 0) ctx.moveTo(x,y);
+        else ctx.lineTo(x,y);
+      });
+      ctx.stroke();
     }
 
-    async function loadChart(showLoader = true) {
-      const res = await fetch(`/chart/${encodeURIComponent(currentSymbol)}?tf=${currentTF}`);
-      const data = await res.json();
-      drawChart(data);
-      document.getElementById('sym').textContent = currentSymbol;
-      const sel = state?.coins?.find(c => c.symbol === currentSymbol);
-      if (sel) document.getElementById('symPrice').textContent = '$' + sel.price;
+    function fmtTime(t){
+      if(!t) return "";
+      return new Date(t).toLocaleTimeString();
     }
 
-    document.getElementById('setPaperBalance').onclick = async () => {
-      const v = parseFloat(document.getElementById('paperBalanceInput').value || '0');
-      await fetch('/set_paper_balance', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+    // events
+    document.getElementById("reload-btn").addEventListener("click", fetchState);
+    document.getElementById("paper-balance-set").addEventListener("click", async () => {
+      const v = Number(paperBalanceInput.value || 0);
+      await fetch(API + "/paper/balance", {
+        method:"POST",
+        headers: {"Content-Type":"application/json"},
         body: JSON.stringify({balance: v})
       });
       fetchState();
-    };
-
-    document.getElementById('paperAuto').onclick = async () => {
-      const btn = document.getElementById('paperAuto');
-      const isOn = btn.textContent.includes('ON');
-      await fetch('/toggle_paper_auto', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({enabled: !isOn})
-      });
-      btn.textContent = 'paper auto: ' + (!isOn ? 'ON' : 'OFF');
-      fetchState();
-    };
-
-    document.getElementById('paperBtn').onclick = async () => {
-      // show paper panel
-      document.getElementById('paperPanel').style.display = 'flex';
-      document.getElementById('paperTradesLog').style.display = 'block';
-      document.getElementById('paperBtn').classList.add('active');
-      await fetch('/toggle_mode', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({mode: 'paper'})
-      });
-    };
-
-    document.getElementById('realBtn').onclick = async () => {
-      const btn = document.getElementById('realBtn');
-      const isOff = btn.textContent.includes('OFF');
-      await fetch('/toggle_real_auto', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({enabled: isOff})
-      });
-      btn.textContent = 'Real auto: ' + (isOff ? 'ON' : 'OFF');
-    };
-
-    document.querySelectorAll('.tf').forEach(el => {
-      el.onclick = () => {
-        document.querySelectorAll('.tf').forEach(x => x.classList.remove('active'));
-        el.classList.add('active');
-        currentTF = el.dataset.tf;
-        loadChart();
-      };
     });
-    document.querySelectorAll('.view').forEach(el => {
-      el.onclick = () => {
-        document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
-        el.classList.add('active');
-        currentView = el.dataset.view;
-        drawChart(lastPoints);
-      };
+    paperAutoBtn.addEventListener("click", async () => {
+      const on = !(CURRENT.state && CURRENT.state.paper_auto);
+      await fetch(API + "/paper/toggle", {
+        method:"POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({on})
+      });
+      fetchState();
+    });
+    realBtn.addEventListener("click", async () => {
+      const on = !(CURRENT.state && CURRENT.state.real_auto);
+      await fetch(API + "/real/toggle", {
+        method:"POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({on})
+      });
+      fetchState();
+    });
+
+    document.querySelectorAll(".tf-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tf-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        CURRENT.tf = btn.dataset.tf;
+        fetchHistory(CURRENT.selected, CURRENT.tf);
+      });
     });
 
     // init
     fetchState();
-    setInterval(fetchState, 10000);
   </script>
 </body>
 </html>
