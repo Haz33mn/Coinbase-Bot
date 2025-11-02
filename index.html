@@ -235,6 +235,7 @@
 
     async function fetchJSON(url) {
       const r = await fetch(url);
+      if (!r.ok) throw new Error("bad resp");
       return r.json();
     }
 
@@ -307,7 +308,6 @@
         });
         ctx.stroke();
       } else {
-        // candles
         const cw = (w/devicePixelRatio) / Math.max(1, candles.length);
         candles.forEach((c, i) => {
           const x = i * cw + cw*0.15;
@@ -320,12 +320,10 @@
           const isUp = close >= open;
           ctx.strokeStyle = isUp ? "#3de6b2" : "#ff5f6f";
           ctx.lineWidth = 1;
-          // wick
           ctx.beginPath();
           ctx.moveTo(x+cw*0.25, yHigh);
           ctx.lineTo(x+cw*0.25, yLow);
           ctx.stroke();
-          // body
           ctx.fillStyle = isUp ? "#3de6b2" : "#ff5f6f";
           const bodyY = isUp ? yClose : yOpen;
           const bodyH = Math.abs(yOpen - yClose);
@@ -353,7 +351,6 @@
       ctx.fillText("fallback data", (w/devicePixelRatio)-90, (h/devicePixelRatio)-10);
     }
 
-    // events
     refreshBtn.onclick = () => {
       loadPrices().then(loadHistory);
     };
