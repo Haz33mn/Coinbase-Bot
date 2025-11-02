@@ -1,5 +1,6 @@
 import os
 import json
+import math
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Dict, List
@@ -17,11 +18,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------- simple file persistence ----------
 STATE_FILE = Path("state.json")
 
 
-def _now_iso() -> str:
+def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
@@ -50,7 +50,7 @@ def default_state() -> Dict[str, Any]:
         # real
         "real_auto": False,
         "real_trades": [],
-        "last_update": _now_iso(),
+        "last_update": now_iso(),
     }
 
 
@@ -58,15 +58,13 @@ def load_state() -> Dict[str, Any]:
     if STATE_FILE.exists():
         try:
             with STATE_FILE.open("r", encoding="utf-8") as f:
-                data = json.load(f)
-            return data
+                return json.load(f)
         except Exception:
             return default_state()
     return default_state()
 
 
 def save_state(state: Dict[str, Any]) -> None:
-    # render free dynos may lose this on restart/redeploy, but this survives page reloads
     with STATE_FILE.open("w", encoding="utf-8") as f:
         json.dump(state, f, indent=2)
 
@@ -74,37 +72,35 @@ def save_state(state: Dict[str, Any]) -> None:
 STATE = load_state()
 
 
-# ---------- helpers ----------
 def make_history(symbol: str, tf: str) -> List[Dict[str, float]]:
-    # just mock data so UI always has something
+    # make it smooth, not triangles
     if tf == "1D":
-        pts = 60
+        pts, step, amp = 60, 0.35, 1.8
     elif tf == "1W":
-        pts = 80
+        pts, step, amp = 80, 0.25, 2.4
     elif tf == "1M":
-        pts = 100
+        pts, step, amp = 100, 0.16, 3.3
     elif tf == "6M":
-        pts = 140
-    else:  # 1Y or anything else
-        pts = 160
+        pts, step, amp = 140, 0.08, 4.2
+    else:  # 1Y
+        pts, step, amp = 160, 0.05, 5.0
 
     base = 100.0
-    arr = []
+    arr: List[Dict[str, float]] = []
     for i in range(pts):
-        price = base + (i % 20) * 1.4
+        v = base + amp * math.sin(i * step) + amp * 0.5 * math.sin(i * step * 0.33)
         arr.append(
             {
                 "t": i,
-                "o": price - 0.4,
-                "h": price + 0.8,
-                "l": price - 1.0,
-                "c": price,
+                "o": v - 0.3,
+                "h": v + 0.6,
+                "l": v - 0.9,
+                "c": v,
             }
         )
     return arr
 
 
-# ---------- routes ----------
 @app.get("/", response_class=HTMLResponse)
 async def index():
     static_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
@@ -113,7 +109,6 @@ async def index():
 
 @app.get("/state")
 async def get_state():
-    # trim trades to last 12 each
     paper_trades = (STATE.get("paper_trades") or [])[-12:][::-1]
     real_trades = (STATE.get("real_trades") or [])[-12:][::-1]
     return {
@@ -140,7 +135,7 @@ async def select_coin(payload: Dict[str, str] = Body(...)):
     if not any(c["symbol"] == symbol for c in STATE["coins"]):
         return {"ok": False, "error": "unknown symbol"}
     STATE["selected"] = symbol
-    STATE["last_update"] = _now_iso()
+    STATE["last_update"] = now_iso()
     save_state(STATE)
     return {"ok": True, "selected": symbol}
 
@@ -160,15 +155,24 @@ async def set_paper_balance(payload: Dict[str, Any] = Body(...)):
     STATE["paper_balance"] = bal
     STATE["paper_equity"] = bal
     STATE["paper_pl"] = 0.0
-    STATE["last_update"] = _now_iso()
+    STATE["last_update"] = now_iso()
     save_state(STATE)
     return {"ok": True, "paper_balance": bal}
+
+
+@app.post("/paper/enable")
+async def enable_paper(payload: Dict[str, Any] = Body(...)):
+    enabled = bool(payload.get("enabled", True))
+    STATE["paper_enabled"] = enabled
+    STATE["last_update"] = now_iso()
+    save_state(STATE)
+    return {"ok": True, "paper_enabled": enabled}
 
 
 @app.post("/paper/toggle")
 async def toggle_paper(payload: Dict[str, Any] = Body(...)):
     STATE["paper_auto"] = bool(payload.get("on", False))
-    STATE["last_update"] = _now_iso()
+    STATE["last_update"] = now_iso()
     save_state(STATE)
     return {"ok": True, "paper_auto": STATE["paper_auto"]}
 
@@ -180,26 +184,24 @@ async def paper_fake_trade(payload: Dict[str, Any] = Body(...)):
     price = float(payload.get("price", 100.0))
     qty = float(payload.get("qty", 1.0))
 
-    # update equity
+    # fake fill
+    fee = price * qty * 0.001  # 0.1% fee example
     if side == "BUY":
-        # pretend we open a position
-        STATE["paper_equity"] -= price * qty * 0.0
-    elif side == "SELL":
-        STATE["paper_equity"] += price * qty * 0.0
+        STATE["paper_equity"] -= fee
+    else:
+        STATE["paper_equity"] += 0  # flat for sell
 
-    # recalc P/L vs balance
     STATE["paper_pl"] = STATE["paper_equity"] - STATE["paper_balance"]
-
     trade = {
-        "kind": "paper",
-        "symbol": symbol,
-        "side": side,
-        "price": price,
-        "qty": qty,
-        "at": _now_iso(),
+      "kind": "paper",
+      "symbol": symbol,
+      "side": side,
+      "price": price,
+      "qty": qty,
+      "at": now_iso(),
     }
     STATE.setdefault("paper_trades", []).append(trade)
-    STATE["last_update"] = _now_iso()
+    STATE["last_update"] = now_iso()
     save_state(STATE)
     return {"ok": True, "trade": trade}
 
@@ -207,14 +209,13 @@ async def paper_fake_trade(payload: Dict[str, Any] = Body(...)):
 @app.post("/real/toggle")
 async def real_toggle(payload: Dict[str, Any] = Body(...)):
     STATE["real_auto"] = bool(payload.get("on", False))
-    STATE["last_update"] = _now_iso()
+    STATE["last_update"] = now_iso()
     save_state(STATE)
     return {"ok": True, "real_auto": STATE["real_auto"]}
 
 
 @app.post("/real/fake-trade")
 async def real_fake_trade(payload: Dict[str, Any] = Body(...)):
-    # this is just a logger so you can SEE what the AI would have done for real
     symbol = payload.get("symbol", STATE["selected"])
     side = payload.get("side", "BUY").upper()
     price = float(payload.get("price", 100.0))
@@ -226,9 +227,9 @@ async def real_fake_trade(payload: Dict[str, Any] = Body(...)):
         "side": side,
         "price": price,
         "qty": qty,
-        "at": _now_iso(),
+        "at": now_iso(),
     }
     STATE.setdefault("real_trades", []).append(trade)
-    STATE["last_update"] = _now_iso()
+    STATE["last_update"] = now_iso()
     save_state(STATE)
     return {"ok": True, "trade": trade}
