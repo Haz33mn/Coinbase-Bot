@@ -27,10 +27,11 @@ async def root():
     return RedirectResponse(url="/static/index.html")
 
 
-# ------------------ STATE ------------------
+# ------------------ GLOBAL STATE ------------------
 AUTO_MODE = "off"  # off | paper | live
 LAST_PRICES = {}
 
+# paper account
 PAPER_STATE = {
     "cash": 1000.0,
     "positions": {},
@@ -38,6 +39,9 @@ PAPER_STATE = {
     "pnl": 0.0,
     "trades": [],
 }
+
+# this is what you wanted to make editable from the UI
+PAPER_TRADE_DOLLARS = 25.0  # default per paper trade
 
 COIN_LIST = [
     "BTC-USD",
@@ -52,8 +56,6 @@ COIN_LIST = [
     "DOGE-USD",
 ]
 
-PAPER_TRADE_DOLLARS = 25.0
-
 
 # ------------------ HELPERS ------------------
 async def fetch_spot_price(symbol: str) -> float:
@@ -66,31 +68,28 @@ async def fetch_spot_price(symbol: str) -> float:
     return 0.0
 
 
-async def fetch_candles(symbol: str, tf: str) -> tuple[list, bool]:
+async def fetch_candles(symbol: str, tf: str):
     """
-    return (candles, used_fallback)
-    1) try old public exchange endpoint (very reliable)
-    2) if that fails -> make mock
+    1) try reliable public exchange endpoint
+    2) if it fails -> make fake candles so UI never goes blank
+    returns (candles, used_fallback)
     """
-    # map our TF to a Coinbase granularity (seconds)
     tf_map = {
-        "1D": 60 * 15,     # 15m -> 96 bars
-        "1W": 60 * 60,     # 1h
+        "1D": 60 * 15,      # 15m
+        "1W": 60 * 60,      # 1h
         "1M": 60 * 60 * 6,  # 6h
-        "6M": 60 * 60 * 24,  # 1d
-        "1Y": 60 * 60 * 24,  # 1d
+        "6M": 60 * 60 * 24, # 1d
+        "1Y": 60 * 60 * 24, # 1d
     }
     gran = tf_map.get(tf, 60 * 15)
-    product_id = symbol  # BTC-USD
 
-    # 1) try exchange endpoint
-    ex_url = f"https://api.exchange.coinbase.com/products/{product_id}/candles?granularity={gran}"
+    ex_url = f"https://api.exchange.coinbase.com/products/{symbol}/candles?granularity={gran}"
     try:
         async with httpx.AsyncClient(timeout=6.0) as client:
             r = await client.get(ex_url, headers={"User-Agent": "cb-bot"})
         if r.status_code == 200:
             raw = r.json()  # [[time, low, high, open, close, volume], ...] newest first
-            raw.sort(key=lambda x: x[0])  # oldest first
+            raw.sort(key=lambda x: x[0])
             candles = []
             for c in raw:
                 candles.append(
@@ -107,12 +106,11 @@ async def fetch_candles(symbol: str, tf: str) -> tuple[list, bool]:
     except Exception:
         pass
 
-    # 2) fallback fake
+    # fallback
     base_price = LAST_PRICES.get(symbol, 100.0)
     mock = []
     price = base_price
     for i in range(80):
-        # little zigzag
         if i % 2 == 0:
             price *= 1.003
         else:
@@ -145,9 +143,9 @@ async def get_prices():
     global LAST_PRICES
     out = {}
     for sym in COIN_LIST:
-        p = await fetch_spot_price(sym)
-        if p > 0:
-            out[sym] = p
+        price = await fetch_spot_price(sym)
+        if price > 0:
+            out[sym] = price
     if out:
         LAST_PRICES = out
         recompute_paper_equity()
@@ -174,10 +172,10 @@ async def get_trade_mode():
 async def set_trade_mode(req: Request):
     global AUTO_MODE
     data = await req.json()
-    m = data.get("mode", "off")
-    if m not in ("off", "paper", "live"):
-        m = "off"
-    AUTO_MODE = m
+    mode = data.get("mode", "off")
+    if mode not in ("off", "paper", "live"):
+        mode = "off"
+    AUTO_MODE = mode
     return {"mode": AUTO_MODE}
 
 
@@ -191,6 +189,40 @@ async def paper_stats():
         "positions": PAPER_STATE["positions"],
         "trades": PAPER_STATE["trades"][-30:],
         "started_with": 1000.0,
+        "trade_dollars": PAPER_TRADE_DOLLARS,
+    }
+
+
+@app.get("/paper-config")
+async def get_paper_config():
+    recompute_paper_equity()
+    return {
+        "trade_dollars": PAPER_TRADE_DOLLARS,
+        "equity": round(PAPER_STATE["last_equity"], 2),
+        "pnl": round(PAPER_STATE["pnl"], 2),
+    }
+
+
+@app.post("/paper-config")
+async def set_paper_config(req: Request):
+    """
+    body: { "trade_dollars": 50 }
+    """
+    global PAPER_TRADE_DOLLARS
+    data = await req.json()
+    td = float(data.get("trade_dollars", PAPER_TRADE_DOLLARS))
+    # keep it safe
+    if td < 5:
+        td = 5
+    if td > 500:
+        td = 500
+    PAPER_TRADE_DOLLARS = td
+    recompute_paper_equity()
+    return {
+        "ok": True,
+        "trade_dollars": PAPER_TRADE_DOLLARS,
+        "equity": round(PAPER_STATE["last_equity"], 2),
+        "pnl": round(PAPER_STATE["pnl"], 2),
     }
 
 
@@ -198,32 +230,37 @@ async def paper_stats():
 async def live_stats():
     return {
         "connected": True,
-        "executed_trades": 0,
-        "note": "live trading not wired to Coinbase yet (safe).",
+        "pnl": 0.0,
+        "note": "live P/L not implemented yet",
     }
 
 
 @app.post("/run-bot")
 async def run_bot():
     """
-    very small paper logic
+    tiny paper strategy:
+    - buy coin that's >1% under the basket
+    - sell coin that's >1.2% over the basket
+    - this now respects PAPER_TRADE_DOLLARS coming from the UI
     """
+    global PAPER_TRADE_DOLLARS
+
     if AUTO_MODE != "paper":
         return {"status": "idle", "mode": AUTO_MODE}
 
     if not LAST_PRICES:
         return {"status": "no-prices"}
 
-    prices_items = list(LAST_PRICES.items())
-    avg = sum(p for _, p in prices_items) / len(prices_items)
+    items = list(LAST_PRICES.items())
+    avg = sum(p for _, p in items) / len(items)
 
     biggest_drop_sym = None
     biggest_drop_pct = 0
     biggest_rip_sym = None
     biggest_rip_pct = 0
 
-    for sym, p in prices_items:
-        pct = (p - avg) / avg * 100
+    for sym, price in items:
+        pct = (price - avg) / avg * 100
         if pct < biggest_drop_pct:
             biggest_drop_pct = pct
             biggest_drop_sym = sym
@@ -233,7 +270,7 @@ async def run_bot():
 
     did_trade = False
 
-    # buy dip (>1%) to beat ~0.5% fees
+    # BUY dip (>1%) -> needs to clear fee
     if biggest_drop_sym and biggest_drop_pct < -1.0:
         price = LAST_PRICES[biggest_drop_sym]
         dollars = min(PAPER_TRADE_DOLLARS, PAPER_STATE["cash"])
@@ -258,7 +295,7 @@ async def run_bot():
             )
             did_trade = True
 
-    # sell rip (>1.2%)
+    # SELL rip (>1.2%)
     if biggest_rip_sym and biggest_rip_pct > 1.2:
         price = LAST_PRICES[biggest_rip_sym]
         pos = PAPER_STATE["positions"].get(biggest_rip_sym)
@@ -288,5 +325,6 @@ async def run_bot():
             "cash": round(PAPER_STATE["cash"], 2),
             "equity": round(PAPER_STATE["last_equity"], 2),
             "pnl": round(PAPER_STATE["pnl"], 2),
+            "trade_dollars": PAPER_TRADE_DOLLARS,
         },
     }
