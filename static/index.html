@@ -5,13 +5,12 @@
   <title>My Coinbase Bot</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    :root {
+    :root{
       --bg:#000;
       --panel:#101010;
       --panel2:#151515;
-      --accent:#00bcd4;
-      --accent-soft:rgba(0,188,212,.15);
       --muted:rgba(255,255,255,.35);
+      --accent:#00bcd4;
       --green:#1de975;
       --red:#ff4d67;
     }
@@ -28,27 +27,34 @@
     }
     .app{
       width:min(1200px,100%);
-      border:1px solid rgba(255,255,255,.03);
+      border:1px solid rgba(255,255,255,.02);
       border-radius:20px;
-      background:rgba(0,0,0,.15);
+      background:rgba(0,0,0,.1);
     }
     header{
       display:flex;
-      align-items:center;
       gap:.6rem;
-      padding:1.1rem 1.6rem .8rem;
+      align-items:center;
+      padding:1rem 1.5rem .8rem;
     }
-    .dot{
-      width:10px;height:10px;border-radius:999px;
-      background:#fe3434;
+    .dot{width:10px;height:10px;border-radius:999px;background:#ff4d4d;}
+    .dot.online{background:#35ea53;}
+    .title{font-weight:650;}
+    .btn-head{
+      margin-left:auto;
+      background:rgba(255,255,255,.03);
+      border:1px solid rgba(255,255,255,.04);
+      border-radius:999px;
+      color:#fff;
+      font-size:.65rem;
+      padding:.25rem .6rem;
+      cursor:pointer;
     }
-    .dot.online{background:#35ea53}
-    .title{font-weight:620}
     .body{
+      padding:0 1.5rem 1rem;
       display:grid;
       grid-template-columns:240px 1fr;
-      gap:1.25rem;
-      padding:0 1.6rem 1rem;
+      gap:1rem;
     }
     .coins{
       background:rgba(0,0,0,.25);
@@ -65,7 +71,7 @@
       border-radius:10px;
       padding:.35rem .5rem;
       color:#fff;
-      font-size:.75rem;
+      font-size:.7rem;
       outline:none;
     }
     .coin{
@@ -87,26 +93,24 @@
       font-size:.58rem;
       padding:.14rem .45rem;
       border-radius:999px;
-      background:rgba(255,255,255,.03);
+      background:rgba(255,255,255,.04);
     }
-    .signal.buy{background:rgba(29,233,117,.18);}
-    .signal.sell{background:rgba(255,77,103,.22);}
     .chart-wrap{
       background:rgba(0,0,0,.25);
       border:1px solid rgba(255,255,255,.02);
       border-radius:16px;
-      padding:.7rem .7rem .3rem;
+      padding:.7rem .7rem .4rem;
       display:flex;
       flex-direction:column;
-      gap:.7rem;
+      gap:.6rem;
       min-height:360px;
     }
     .chart-top{
       display:flex;
       align-items:center;
-      gap:.5rem;
+      gap:.6rem;
     }
-    .tf, .type, .modes{
+    .tf, .type{
       margin-left:auto;
       display:flex;
       gap:.4rem;
@@ -128,54 +132,30 @@
       flex:1;
       background:radial-gradient(circle,rgba(0,188,212,.05),rgba(0,0,0,0));
       border-radius:14px;
+      min-height:230px;
       overflow:hidden;
-      position:relative;
-      min-height:220px;
     }
     canvas{width:100%;height:100%;display:block;}
-    .info-row{
-      padding:0 1.6rem .8rem;
-      display:grid;
-      grid-template-columns:repeat(4,minmax(0,1fr));
-      gap:1rem;
+    .trades{
+      padding:0 1.5rem 1rem;
     }
-    .card{
+    .trades-box{
       background:rgba(0,0,0,.25);
       border:1px solid rgba(255,255,255,.02);
       border-radius:14px;
-      padding:.55rem .7rem .6rem;
+      padding:.5rem .7rem;
+      font-size:.7rem;
     }
-    .card-label{font-size:.6rem;color:var(--muted);text-transform:uppercase;}
-    .card-val{margin-top:.3rem;font-size:.88rem;}
-    .card-val.green{color:var(--green);}
-    .trades{
-      padding:0 1.6rem .7rem;
-    }
-    .trades-box{
-      background:rgba(0,0,0,.2);
-      border:1px solid rgba(255,255,255,.02);
-      border-radius:14px;
-      font-size:.68rem;
-      padding:.4rem .65rem .6rem;
-    }
-    .trade-line{display:flex;gap:.4rem;align-items:center;margin-bottom:.25rem;}
+    .trade-line{display:flex;gap:.4rem;align-items:center;margin-bottom:.25rem;flex-wrap:wrap;}
     .pill{font-size:.55rem;padding:.1rem .4rem;border-radius:999px;}
-    .pill.paper{background:rgba(0,188,212,.12);}
-    .pill.real{background:rgba(255,172,44,.12);}
-    .pill.buy{background:rgba(29,233,117,.3);}
-    .pill.sell{background:rgba(255,77,103,.3);}
-    .footer{
-      padding:0 1.6rem 1.1rem;
-    }
-    .bar{
-      height:14px;
-      background:#fff;
-      border-radius:999px;
-    }
+    .pill.real{background:rgba(255,172,44,.15);}
+    .pill.buy{background:rgba(29,233,117,.35);}
+    .pill.sell{background:rgba(255,77,103,.35);}
+    .footer{padding:0 1.5rem 1rem;}
+    .bar{height:14px;background:#fff;border-radius:999px;}
     .updated{font-size:.6rem;color:var(--muted);margin-top:.3rem;}
     @media(max-width:980px){
       .body{grid-template-columns:1fr;}
-      .info-row{grid-template-columns:1fr 1fr;}
     }
   </style>
 </head>
@@ -184,7 +164,8 @@
     <header>
       <div id="conn-dot" class="dot"></div>
       <div class="title">My Coinbase Bot</div>
-      <button id="refresh" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;">⟳</button>
+      <button id="refresh" class="btn-head">refresh</button>
+      <button id="real-toggle" class="btn-head">Real auto: OFF</button>
     </header>
 
     <div class="body">
@@ -196,7 +177,7 @@
         <div class="chart-top">
           <div>
             <div id="coin-label" style="font-weight:600;">BTC-USD</div>
-            <div id="coin-price" style="font-size:.7rem;color:var(--muted);">$0</div>
+            <div id="coin-price" style="font-size:.69rem;color:var(--muted);">$0</div>
           </div>
           <div class="tf">
             <button class="btn-sm tf-btn active" data-tf="1D">1D</button>
@@ -209,10 +190,6 @@
             <button class="btn-sm type-btn active" data-type="line">Line</button>
             <button class="btn-sm type-btn" data-type="candles">Candles</button>
           </div>
-          <div class="modes">
-            <button id="paper-toggle" class="btn-sm active">Paper</button>
-            <button id="real-toggle" class="btn-sm">Real auto: OFF</button>
-          </div>
         </div>
         <div class="chart-box">
           <canvas id="chart"></canvas>
@@ -220,31 +197,10 @@
       </div>
     </div>
 
-    <div id="paper-row" class="info-row">
-      <div class="card">
-        <div class="card-label">paper balance (USD)</div>
-        <div style="display:flex;gap:.45rem;align-items:center;margin-top:.25rem;">
-          <input id="paper-balance" value="1000" style="width:80px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.03);border-radius:8px;padding:.2rem .3rem;color:#fff;font-size:.7rem;outline:none;">
-          <button id="paper-set" class="btn-sm">set</button>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-label">equity now</div>
-        <div id="equity" class="card-val">$0.00</div>
-      </div>
-      <div class="card">
-        <div class="card-label">money earned</div>
-        <div id="earned" class="card-val green">+0.00</div>
-      </div>
-      <div class="card">
-        <div class="card-label">% gained</div>
-        <div id="percent" class="card-val green">+0.00%</div>
-        <button id="paper-auto" class="btn-sm" style="margin-top:.35rem;">paper auto: OFF</button>
-      </div>
-    </div>
-
     <div class="trades">
-      <div id="trades-box" class="trades-box">no trades yet</div>
+      <div class="trades-box" id="trades-box">
+        no real trades yet
+      </div>
     </div>
 
     <div class="footer">
@@ -269,7 +225,7 @@
       const st = await r.json();
       CURRENT.state = st;
       renderState();
-      await loadHistory(CURRENT.selected, CURRENT.tf);
+      await loadHistory(st.selected, CURRENT.tf);
     }
 
     async function loadHistory(symbol, tf){
@@ -288,15 +244,12 @@
       (st.coins || []).forEach(c=>{
         const el = document.createElement("div");
         el.className = "coin" + (c.symbol === st.selected ? " active" : "");
-        el.dataset.symbol = c.symbol;
         el.innerHTML = `
           <div>
             <div class="coin-name">${c.symbol}</div>
             <div class="coin-price">$${Number(c.price||0).toLocaleString()}</div>
           </div>
-          <div class="signal ${c.signal==="BUY"?"buy":c.signal==="SELL"?"sell":""}">
-            ${c.signal||"HOLD"} · ${c.conf||50}%
-          </div>
+          <div class="signal">${c.signal || "HOLD"} · ${c.conf || 50}%</div>
         `;
         el.addEventListener("click", ()=>selectCoin(c.symbol));
         list.appendChild(el);
@@ -306,62 +259,35 @@
       const coin = (st.coins || []).find(c=>c.symbol===st.selected);
       document.getElementById("coin-price").textContent = coin ? "$" + Number(coin.price||0).toLocaleString() : "$0";
 
-      // paper
-      document.getElementById("paper-row").style.display = st.paper_enabled ? "grid" : "none";
-      document.getElementById("paper-balance").value = st.paper_balance ?? 1000;
-      document.getElementById("equity").textContent = "$" + (st.paper_equity ?? 0).toFixed(2);
-      const pl = st.paper_pl ?? 0;
-      const pct = st.paper_balance ? (pl / st.paper_balance) * 100 : 0;
-      const earnedEl = document.getElementById("earned");
-      const pctEl = document.getElementById("percent");
-      earnedEl.textContent = (pl >= 0 ? "+" : "-") + "$" + Math.abs(pl).toFixed(2);
-      earnedEl.className = "card-val " + (pl >= 0 ? "green" : "red");
-      pctEl.textContent = (pct >= 0 ? "+" : "-") + Math.abs(pct).toFixed(2) + "%";
-      pctEl.className = "card-val " + (pct >= 0 ? "green" : "red");
-      document.getElementById("paper-auto").textContent = "paper auto: " + (st.paper_auto ? "ON" : "OFF");
-      document.getElementById("paper-toggle").classList.toggle("active", st.paper_enabled);
-
-      // real
+      // real auto
       document.getElementById("real-toggle").textContent = "Real auto: " + (st.real_auto ? "ON" : "OFF");
 
       // trades
-      const tradesBox = document.getElementById("trades-box");
-      let html = "";
-      if ((st.paper_trades||[]).length){
-        html += `<div style="font-weight:600;margin-bottom:.25rem;">PAPER TRADES</div>`;
-        (st.paper_trades||[]).forEach(t=>{
-          html += `<div class="trade-line">
-            <span class="pill paper">PAPER</span>
-            <span class="pill ${t.side==="BUY"?"buy":"sell"}">${t.side}</span>
-            <b>${t.symbol}</b>
-            <span>${Number(t.qty||0).toFixed(4)}</span>
-            <span>@ $${Number(t.price||0).toFixed(2)}</span>
-            <span style="color:var(--muted)">${new Date(t.at).toLocaleTimeString()}</span>
-          </div>`;
+      const tb = document.getElementById("trades-box");
+      if ((st.real_trades || []).length === 0){
+        tb.textContent = "no real trades yet";
+      } else {
+        tb.innerHTML = `<div style="margin-bottom:.35rem;font-weight:600;">recent real trades</div>`;
+        (st.real_trades || []).forEach(t=>{
+          tb.innerHTML += `
+            <div class="trade-line">
+              <span class="pill real">REAL</span>
+              <span class="pill ${t.side==="BUY"?"buy":"sell"}">${t.side}</span>
+              <b>${t.symbol}</b>
+              <span>${Number(t.qty||0).toFixed(6)}</span>
+              <span>@ $${Number(t.price||0).toFixed(2)}</span>
+              <span style="color:var(--muted)">${new Date(t.at).toLocaleTimeString()}</span>
+            </div>
+          `;
         });
       }
-      if ((st.real_trades||[]).length){
-        html += `<div style="font-weight:600;margin:.35rem 0 .25rem;">REAL TRADES</div>`;
-        (st.real_trades||[]).forEach(t=>{
-          html += `<div class="trade-line">
-            <span class="pill real">REAL</span>
-            <span class="pill ${t.side==="BUY"?"buy":"sell"}">${t.side}</span>
-            <b>${t.symbol}</b>
-            <span>${Number(t.qty||0).toFixed(4)}</span>
-            <span>@ $${Number(t.price||0).toFixed(2)}</span>
-            <span style="color:var(--muted)">${new Date(t.at).toLocaleTimeString()}</span>
-          </div>`;
-        });
-      }
-      tradesBox.innerHTML = html || "no trades yet";
 
-      // updated
       document.getElementById("updated").textContent = "updated " + (st.last_update ? new Date(st.last_update).toLocaleTimeString() : "--:--");
     }
 
     function drawChart(points){
       const w = chart.clientWidth || 500;
-      const h = chart.clientHeight || 220;
+      const h = chart.clientHeight || 230;
       const dpr = window.devicePixelRatio || 1;
       chart.width = w * dpr;
       chart.height = h * dpr;
@@ -371,10 +297,8 @@
 
       let max = Math.max(...points.map(p=>p.c));
       let min = Math.min(...points.map(p=>p.c));
-      // add bottom padding so it doesn't touch
-      const padFactor = (max - min) * 0.08;
-      max += padFactor;
-      min -= padFactor;
+      const pad = (max - min) * 0.08;
+      max += pad; min -= pad;
 
       const padX = 16, padY = 10;
       const usableW = w - padX*2;
@@ -402,33 +326,6 @@
     }
 
     document.getElementById("refresh").addEventListener("click", loadState);
-    document.getElementById("paper-set").addEventListener("click", async ()=>{
-      const v = Number(document.getElementById("paper-balance").value||0);
-      await fetch(API + "/paper/balance", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({balance:v})
-      });
-      loadState();
-    });
-    document.getElementById("paper-auto").addEventListener("click", async ()=>{
-      const on = !(CURRENT.state && CURRENT.state.paper_auto);
-      await fetch(API + "/paper/toggle", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({on})
-      });
-      loadState();
-    });
-    document.getElementById("paper-toggle").addEventListener("click", async ()=>{
-      const enabled = !(CURRENT.state && CURRENT.state.paper_enabled);
-      await fetch(API + "/paper/enable", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({enabled})
-      });
-      loadState();
-    });
     document.getElementById("real-toggle").addEventListener("click", async ()=>{
       const on = !(CURRENT.state && CURRENT.state.real_auto);
       await fetch(API + "/real/toggle", {
