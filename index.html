@@ -40,15 +40,50 @@
       .header {
         display: flex;
         align-items: center;
-        justify-content: flex-start;
+        justify-content: space-between;
         gap: 10px;
         padding: 14px 20px 6px;
+      }
+      .header-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
       }
       .online-dot {
         width: 7px;
         height: 7px;
         border-radius: 999px;
         background: #00f36b;
+      }
+      .header-right {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .auto-pill {
+        font-size: 0.6rem;
+        padding: 4px 10px 5px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      .auto-pill.on {
+        background: rgba(67, 248, 159, 0.12);
+        border-color: rgba(67, 248, 159, 0.4);
+        color: #43f89f;
+      }
+      .auto-btn {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        color: #fff;
+        border-radius: 999px;
+        padding: 4px 10px 5px;
+        font-size: 0.6rem;
+        cursor: pointer;
+      }
+      .auto-btn.danger {
+        background: rgba(255, 111, 145, 0.16);
+        border-color: rgba(255, 111, 145, 0.25);
       }
       .body-grid {
         display: grid;
@@ -189,6 +224,11 @@
         line-height: 26px;
         cursor: pointer;
       }
+      .auto-status-line {
+        margin-top: 6px;
+        font-size: 0.6rem;
+        color: rgba(255, 255, 255, 0.5);
+      }
       @media (max-width: 850px) {
         .body-grid {
           grid-template-columns: 1fr;
@@ -199,11 +239,20 @@
   <body>
     <div class="app-shell">
       <div class="header">
-        <h2 style="margin: 0; font-size: 1.05rem">My Coinbase Bot</h2>
-        <span class="online-dot"></span>
-        <span style="font-size: 0.6rem; color: var(--muted)"
-          >connected to bot</span
-        >
+        <div class="header-left">
+          <h2 style="margin: 0; font-size: 1.05rem">My Coinbase Bot</h2>
+          <span class="online-dot"></span>
+          <span style="font-size: 0.6rem; color: var(--muted)"
+            >connected to bot</span
+          >
+        </div>
+        <div class="header-right">
+          <span id="autoPill" class="auto-pill">AUTO: OFF</span>
+          <button class="auto-btn" onclick="setAuto(true)">Enable auto</button>
+          <button class="auto-btn danger" onclick="setAuto(false)">
+            Disable
+          </button>
+        </div>
       </div>
 
       <div class="body-grid">
@@ -255,6 +304,9 @@
           >
             updated …
           </div>
+          <div id="autoStatus" class="auto-status-line">
+            auto: waiting for status…
+          </div>
         </div>
       </div>
 
@@ -292,7 +344,7 @@
         const h = rect.height;
         ctx.clearRect(0, 0, w, h);
         if (!points || !points.length) return;
-        const vals = points.map((p) => p.p);
+        const vals = points.map((p) => p.p || p.c || 0);
         const min = Math.min(...vals);
         const max = Math.max(...vals);
         const padX = 10;
@@ -301,9 +353,9 @@
         ctx.strokeStyle = "#33ffcc";
         ctx.beginPath();
         points.forEach((p, i) => {
+          const val = p.p ?? p.c;
           const x = (i / (points.length - 1 || 1)) * (w - padX * 2) + padX;
-          const y =
-            h - ((p.p - min) / (max - min || 1)) * (h - padY * 2) - padY;
+          const y = h - ((val - min) / (max - min || 1)) * (h - padY * 2) - padY;
           if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         });
@@ -326,21 +378,16 @@
 
         candles.forEach((c, i) => {
           const x = (i / (candles.length - 1 || 1)) * (w - padX * 2) + padX;
-          const yH =
-            h - ((c.h - min) / (max - min || 1)) * (h - padY * 2) - padY;
-          const yL =
-            h - ((c.l - min) / (max - min || 1)) * (h - padY * 2) - padY;
-          const yO =
-            h - ((c.o - min) / (max - min || 1)) * (h - padY * 2) - padY;
-          const yC =
-            h - ((c.c - min) / (max - min || 1)) * (h - padY * 2) - padY;
+          const yH = h - ((c.h - min) / (max - min || 1)) * (h - padY * 2) - padY;
+          const yL = h - ((c.l - min) / (max - min || 1)) * (h - padY * 2) - padY;
+          const yO = h - ((c.o - min) / (max - min || 1)) * (h - padY * 2) - padY;
+          const yC = h - ((c.c - min) / (max - min || 1)) * (h - padY * 2) - padY;
           const up = c.c >= c.o;
           ctx.strokeStyle = up ? "#33ffcc" : "#ff6f91";
           ctx.beginPath();
           ctx.moveTo(x, yH);
           ctx.lineTo(x, yL);
           ctx.stroke();
-
           ctx.fillStyle = up ? "#33ffcc" : "#ff6f91";
           const rectY = Math.min(yO, yC);
           const rectH = Math.max(4, Math.abs(yO - yC));
@@ -350,31 +397,28 @@
 
       function setSpan(span, el) {
         currentSpan = span;
-        document
-          .querySelectorAll(".tab-btn")
-          .forEach((b) => b.classList.remove("active"));
+        document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
         el.classList.add("active");
         if (selected) loadHistory(selected);
       }
 
       function setMode(mode, el) {
         currentMode = mode;
-        document
-          .querySelectorAll(".mode-btn")
-          .forEach((b) => b.classList.remove("active"));
+        document.querySelectorAll(".mode-btn").forEach((b) => b.classList.remove("active"));
         el.classList.add("active");
         if (selected) loadHistory(selected);
       }
 
       async function loadPrices() {
         try {
-          const res = await fetch(`${API_BASE}/prices`);
+          const res = await fetch(`${API_BASE}/api/prices`);
           const json = await res.json();
-          prices = json.prices || {};
-          coins = Object.keys(prices)
-            .map((s) => ({ symbol: s, price: prices[s] }))
-            .sort((a, b) => b.price - a.price)
-            .slice(0, 10);
+          const arr = json.coins || [];
+          prices = {};
+          arr.forEach((c) => {
+            prices[c.symbol] = c.price;
+          });
+          coins = arr.sort((a, b) => b.price - a.price).slice(0, 10);
           renderCoinList();
           if (!selected && coins.length) selectCoin(coins[0].symbol);
         } catch (e) {
@@ -386,13 +430,10 @@
         const wrap = document.getElementById("coinList");
         wrap.innerHTML = "";
         coins
-          .filter((c) =>
-            c.symbol.toLowerCase().includes(filterText.toLowerCase())
-          )
+          .filter((c) => c.symbol.toLowerCase().includes(filterText.toLowerCase()))
           .forEach((c) => {
             const el = document.createElement("div");
-            el.className =
-              "coin-item" + (c.symbol === selected ? " active" : "");
+            el.className = "coin-item" + (c.symbol === selected ? " active" : "");
             el.onclick = () => selectCoin(c.symbol);
 
             const left = document.createElement("div");
@@ -427,24 +468,22 @@
         status.style.display = "none";
         try {
           const res = await fetch(
-            `/history?symbol=${encodeURIComponent(
+            `/api/history?product_id=${encodeURIComponent(
               symbol
-            )}&span=${encodeURIComponent(
-              currentSpan
-            )}&mode=${encodeURIComponent(currentMode)}`
+            )}&range_key=${encodeURIComponent(currentSpan)}`
           );
           const data = await res.json();
           if (currentMode === "candles") {
-            drawCandles(data.candles || []);
+            drawCandles(data.points || data.candles || []);
           } else {
             drawLine(data.points || []);
           }
-          if (data.source === "live") {
-            status.textContent = "live from Coinbase";
-            status.className = "chart-status live";
-          } else {
+          if (data.fallback) {
             status.textContent = "fallback data";
             status.className = "chart-status mock";
+          } else {
+            status.textContent = "live from Coinbase";
+            status.className = "chart-status live";
           }
           status.style.display = "block";
         } catch (e) {
@@ -467,7 +506,7 @@
             conf: 50,
           };
         const diffPct = ((currentPrice - prev) / prev) * 100;
-        const buyTh = 1.0; // 1% move
+        const buyTh = 1.0;
         const sellTh = -1.0;
         if (diffPct >= buyTh) return { type: "buy", label: "BUY", conf: 82 };
         if (diffPct <= sellTh) return { type: "sell", label: "SELL", conf: 80 };
@@ -477,10 +516,49 @@
       async function refreshAll() {
         await loadPrices();
         if (selected) await loadHistory(selected);
+        await pollAutoStatus();
+      }
+
+      async function setAuto(on) {
+        try {
+          await fetch(`/api/auto/${on ? "on" : "off"}`, {
+            method: "POST",
+          });
+        } catch (e) {
+          console.error(e);
+        }
+        await pollAutoStatus();
+      }
+
+      async function pollAutoStatus() {
+        const pill = document.getElementById("autoPill");
+        const line = document.getElementById("autoStatus");
+        try {
+          const res = await fetch(
+            `/api/auto/status?product_id=${encodeURIComponent(
+              selected || "BTC-USD"
+            )}`
+          );
+          const data = await res.json();
+          if (data.auto_on) {
+            pill.textContent = "AUTO: ON";
+            pill.classList.add("on");
+          } else {
+            pill.textContent = "AUTO: OFF";
+            pill.classList.remove("on");
+          }
+          const act = data.action || "HOLD";
+          const reason = data.reason || "";
+          line.textContent = `auto: ${act} ${reason ? "• " + reason : ""}`;
+        } catch (e) {
+          pill.textContent = "AUTO: ? (error)";
+          pill.classList.remove("on");
+          line.textContent = "auto: error getting status";
+        }
       }
 
       refreshAll();
-      setInterval(refreshAll, 15000);
+      setInterval(pollAutoStatus, 15000);
     </script>
   </body>
 </html>
