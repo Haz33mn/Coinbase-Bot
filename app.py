@@ -1,524 +1,333 @@
 import os
-import json
 import time
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any, List
+import hmac
+import json
+import base64
+import hashlib
+from typing import Optional, Literal
 
-import jwt        # PyJWT
 import httpx
-from fastapi import FastAPI, Body
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, PlainTextResponse
 
-# =========================================================
-# ENV / CONFIG
-# =========================================================
-# these 2 are from your downloaded Coinbase API key
-COINBASE_API_KEY = os.getenv("COINBASE_API_KEY")
-COINBASE_API_SECRET = os.getenv("COINBASE_API_SECRET")
+# ------------------------------------------------------------
+# CONFIG / STATE (in-memory)
+# ------------------------------------------------------------
+# start in paper mode so we don't blow your real money
+STATE = {
+    "mode": os.getenv("TRADING_MODE", "paper"),  # "paper" | "live"
+    "auto": False,  # auto-trading off by default
+    "last_trade_ts": 0.0,
+    "min_seconds_between_trades": 45,  # don't spam
+}
 
-# public (no auth) endpoints we use for prices + history
-CB_PUBLIC_PRICE = "https://api.coinbase.com/v2/prices/{pair}/spot"
-CB_PUBLIC_CANDLES = "https://api.exchange.coinbase.com/products/{pair}/candles"
+app = FastAPI(title="Coinbase Bot Backend")
 
-# authenticated (needs JWT) endpoint we use for balances + orders
-CB_BROKERAGE_BASE = "https://api.coinbase.com/api/v3/brokerage"
+# ------------------------------------------------------------
+# HELPERS
+# ------------------------------------------------------------
 
-# fee + trading controls
-# single-side fee, e.g. 0.006 = 0.6% per trade
-FEE_RATE = float(os.getenv("TRADING_FEE_RATE", "0.006"))
-# we want to earn a bit more than just fees
-FEE_BUFFER_PCT = float(os.getenv("TRADING_BUFFER_PCT", "0.5"))  # +0.5%
-# minimum quote we use for auto trades
-MIN_QUOTE = float(os.getenv("TRADING_MIN_QUOTE", "5"))
-# cooldown between actual trades
-COOLDOWN_MINUTES = int(os.getenv("TRADING_COOLDOWN_MINUTES", "15"))
+COINBASE_PUBLIC_API = "https://api.coinbase.com/api/v3"
+ADVANCED_TRADE_API = "https://api.coinbase.com/api/v3/brokerage"
 
-# coins to show in UI
-COINS = [
-    "BTC-USD",
-    "ETH-USD",
-    "BCH-USD",
-    "SOL-USD",
-    "LTC-USD",
-    "AVAX-USD",
-    "LINK-USD",
-    "DOT-USD",
-    "ADA-USD",
-    "DOGE-USD",
-]
+def coinbase_keys_present() -> bool:
+    return bool(os.getenv("COINBASE_API_KEY") and os.getenv("COINBASE_PRIVATE_KEY"))
 
-HAS_CREDS = bool(COINBASE_API_KEY and COINBASE_API_SECRET)
+async def fetch_spot_price(symbol: str) -> Optional[float]:
+    # symbol like "BTC-USD"
+    url = f"{COINBASE_PUBLIC_API}/brokerage/products/{symbol}"
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(url)
+    if r.status_code != 200:
+        return None
+    data = r.json()
+    price = data.get("price") or data.get("pricebook", {}).get("product_id")
+    # real endpoint returns "price" as string
+    return float(data["price"]) if "price" in data else None
 
-# auto-trader state
-AUTO_TRADER_ON: bool = False
-LAST_TRADE_AT: Optional[datetime] = None
+async def fetch_candles(symbol: str, granularity: str) -> list:
+    """
+    Return candles as list of {t,o,h,l,c} for the UI.
+    We map your UI ranges to Coinbase-ish intervals.
+    """
+    # map UI -> seconds
+    # 1D -> 5m
+    # 1W -> 1h
+    # 1M -> 6h
+    # 6M -> 1d
+    # 1Y -> 1d
+    gran_map = {
+        "1d": 300,
+        "1w": 3600,
+        "1m": 21600,
+        "6m": 86400,
+        "1y": 86400,
+    }
+    gran_sec = gran_map.get(granularity, 300)
 
-app = FastAPI()
+    url = f"{COINBASE_PUBLIC_API}/brokerage/products/{symbol}/candles?granularity={gran_sec}"
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(url)
+    if r.status_code != 200:
+        # return fake shape so UI still draws
+        return [
+            {"t": int(time.time()) - 600, "o": 100, "h": 110, "l": 95, "c": 105},
+            {"t": int(time.time()), "o": 105, "h": 115, "l": 99, "c": 110},
+        ]
 
+    raw = r.json()
+    # Coinbase candles come as list of [start, low, high, open, close, volume]
+    candles = []
+    for row in raw:
+        ts, low, high, open_, close, vol = row
+        candles.append(
+            {
+                "t": ts,
+                "o": float(open_),
+                "h": float(high),
+                "l": float(low),
+                "c": float(close),
+            }
+        )
+    # sort oldest -> newest
+    candles.sort(key=lambda x: x["t"])
+    return candles
 
-# =========================================================
-# JWT for Coinbase brokerage (trading)
-# =========================================================
-def make_cb_jwt() -> str:
-    if not HAS_CREDS:
-        raise RuntimeError("Coinbase API credentials missing")
+def decide_action(current_price: float, history: list[float]) -> dict:
+    """
+    Very dumb but stable: only trade if move > 0.7%.
+    history is list of past closes (oldest -> newest).
+    """
+    if not history:
+        return {"action": "hold", "confidence": 50}
+
+    last_price = history[-1]
+    move_pct = ((current_price - last_price) / last_price) * 100
+
+    # thresholds
+    BUY_THRESH = -0.7   # price dropped 0.7% -> buy
+    SELL_THRESH = 0.7   # price jumped 0.7% -> sell
+
+    if move_pct <= BUY_THRESH:
+        return {"action": "buy", "confidence": min(90, int(abs(move_pct) * 10))}
+    elif move_pct >= SELL_THRESH:
+        return {"action": "sell", "confidence": min(90, int(abs(move_pct) * 10))}
+    else:
+        return {"action": "hold", "confidence": 50}
+
+def fees_ok(expected_profit_pct: float, est_fee_pct: float = 0.6) -> bool:
+    """
+    est_fee_pct ~0.6% = buy 0.3 + sell 0.3 (depends on your account)
+    Only trade when expected_profit_pct > total fees.
+    """
+    return expected_profit_pct > est_fee_pct
+
+async def place_live_order(symbol: str, side: Literal["BUY", "SELL"], amount_usd: float) -> dict:
+    """
+    Try to place a real order.
+    This is written so that if PyJWT isn't installed, we just return a safe error
+    instead of crashing your whole app (Render was doing that).
+    """
+    if not coinbase_keys_present():
+        return {"ok": False, "reason": "live mode not configured on server"}
+
+    # lazy import so Render won't crash on startup
+    try:
+        import jwt  # PyJWT
+    except ImportError:
+        return {"ok": False, "reason": "PyJWT not installed on server"}
+
+    api_key = os.getenv("COINBASE_API_KEY")
+    private_key = os.getenv("COINBASE_PRIVATE_KEY")
+
+    # Coinbase advanced trade needs a JWT signed request.
+    # This is a simplified placeholder — you will likely need to adjust to your account.
     now = int(time.time())
     payload = {
-        "iss": COINBASE_API_KEY,
-        "sub": COINBASE_API_KEY,
-        "aud": "retail_rest_api",
-        "iat": now,
+        "sub": api_key,
+        "iss": "coinbase-python-bot",
         "nbf": now,
-        "exp": now + 300,
+        "iat": now,
+        "exp": now + 60,
     }
-    token = jwt.encode(
-        payload,
-        COINBASE_API_SECRET,
-        algorithm="ES256",
-        headers={"kid": COINBASE_API_KEY},
-    )
-    return token
-
-
-async def cb_auth_get(path: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
-    """GET to brokerage (auth)"""
-    if not HAS_CREDS:
-        return {"error": "no_creds"}
-    url = f"{CB_BROKERAGE_BASE}{path}"
-    token = make_cb_jwt()
-    headers = {"Authorization": f"Bearer {token}"}
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        r = await client.get(url, headers=headers, params=params)
-    if r.status_code >= 400:
-        return {"error": r.text, "status_code": r.status_code}
-    return r.json()
-
-
-async def cb_auth_post(path: str, body: Dict[str, Any]) -> Dict[str, Any]:
-    """POST to brokerage (auth)"""
-    if not HAS_CREDS:
-        return {"error": "no_creds"}
-    url = f"{CB_BROKERAGE_BASE}{path}"
-    token = make_cb_jwt()
-    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        r = await client.post(url, headers=headers, json=body)
-    if r.status_code >= 400:
-      return {"error": r.text, "status_code": r.status_code}
-    return r.json()
-
-
-# =========================================================
-# helpers
-# =========================================================
-def now_utc() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def now_iso() -> str:
-    return now_utc().strftime("%Y-%m-%d %H:%M:%S UTC")
-
-
-def parse_base_from_pair(pair: str) -> str:
-    # "BTC-USD" -> "BTC"
-    if "-" in pair:
-        return pair.split("-")[0]
-    return pair
-
-
-def parse_quote_from_pair(pair: str) -> str:
-    # "BTC-USD" -> "USD"
-    if "-" in pair:
-        return pair.split("-")[1]
-    return "USD"
-
-
-async def get_account_balance(currency: str) -> float:
-    """
-    Look up available balance for a currency (USD, BTC, ETH, ...)
-    via brokerage /accounts
-    """
-    if not HAS_CREDS:
-        return 0.0
-    res = await cb_auth_get("/accounts")
-    if "error" in res:
-        return 0.0
-    for acc in res.get("accounts", []):
-        if acc.get("currency") == currency:
-            # some responses use 'available_balance': {'value': ..., 'currency': ...}
-            ab = acc.get("available_balance") or {}
-            val = ab.get("value") or "0"
-            try:
-                return float(val)
-            except ValueError:
-                return 0.0
-    return 0.0
-
-
-# =========================================================
-# FRONTEND
-# =========================================================
-@app.get("/", response_class=HTMLResponse)
-async def index():
-    return FileResponse("index.html")
-
-
-# =========================================================
-# PRICES (public, no auth)
-# =========================================================
-@app.get("/api/prices")
-async def api_prices():
-    coins_out = []
-    async with httpx.AsyncClient(timeout=6.0) as client:
-        for pair in COINS:
-            url = CB_PUBLIC_PRICE.format(pair=pair)
-            try:
-                r = await client.get(url)
-                if r.status_code == 200:
-                    data = r.json()
-                    amount = float(data["data"]["amount"])
-                else:
-                    amount = 0.0
-            except Exception:
-                amount = 0.0
-            coins_out.append(
-                {
-                    "symbol": pair,
-                    "price": amount,
-                    "signal": "HOLD",
-                    "confidence": 50,
-                }
-            )
-    # order by price, take top 10
-    coins_out.sort(key=lambda x: x["price"], reverse=True)
-    coins_out = coins_out[:10]
-    return {"coins": coins_out, "fetched_at": now_iso(), "live": True}
-
-
-# =========================================================
-# HISTORY (public, real candles) with 1Y fix (300 days)
-# =========================================================
-@app.get("/api/history")
-async def api_history(product_id: str, range_key: str = "1D"):
-    """
-    Use exchange public endpoint:
-      /products/<product_id>/candles?start=...&end=...&granularity=...
-    We must give start/end for long ranges, and for 1Y we cap to 300 days
-    (Coinbase max ~300 points).
-    """
-    now = now_utc()
-
-    range_key = range_key.upper()
-    if range_key == "1D":
-        gran = 900  # 15m
-        start = now - timedelta(days=1)
-    elif range_key == "1W":
-        gran = 3600  # 1h
-        start = now - timedelta(days=7)
-    elif range_key == "1M":
-        gran = 21600  # 6h
-        start = now - timedelta(days=30)
-    elif range_key == "6M":
-        gran = 86400  # 1d
-        start = now - timedelta(days=180)
-    else:  # 1Y
-        gran = 86400  # 1d
-        start = now - timedelta(days=300)  # cap to 300d to avoid 400
-
-    params = {
-        "start": start.isoformat(),
-        "end": now.isoformat(),
-        "granularity": gran,
-    }
-
-    url = CB_PUBLIC_CANDLES.format(pair=product_id)
-    async with httpx.AsyncClient(timeout=8.0) as client:
-        r = await client.get(url, params=params)
-
-    if r.status_code != 200:
-        # fallback simple wave
-        pts = []
-        base = 100.0
-        for i in range(60):
-            pts.append(
-                {
-                    "t": (now - timedelta(minutes=10 * (60 - i))).isoformat(),
-                    "o": base,
-                    "h": base * 1.002,
-                    "l": base * 0.998,
-                    "c": base * (1 + 0.01 * (i / 60)),
-                }
-            )
-        return {"ok": False, "fallback": True, "points": pts}
-
-    # exchange candles: [ time, low, high, open, close, volume ]
-    candles_raw = r.json()
-    candles_raw.reverse()  # oldest -> newest
-
-    points = []
-    for c in candles_raw:
-        ts, low, high, open_, close, vol = c
-        points.append(
-            {
-                "t": datetime.utcfromtimestamp(ts).isoformat() + "Z",
-                "o": open_,
-                "h": high,
-                "l": low,
-                "c": close,
-            }
-        )
-
-    return {"ok": True, "fallback": False, "points": points}
-
-
-# =========================================================
-# ACCOUNTS (auth)
-# =========================================================
-@app.get("/api/accounts")
-async def api_accounts():
-    if not HAS_CREDS:
-        return {"ok": False, "error": "missing_coinbase_creds"}
-    r = await cb_auth_get("/accounts")
-    if "error" in r:
-        return {"ok": False, "error": r["error"]}
-    return {"ok": True, "accounts": r.get("accounts", [])}
-
-
-# =========================================================
-# TRADE (auth)
-# =========================================================
-@app.post("/api/trade")
-async def api_trade(payload: Dict[str, Any] = Body(...)):
-    """
-    payload:
-      {
-        "product_id": "BTC-USD",
-        "side": "BUY" | "SELL",
-        "quote_size": "10"   # buy/sell with $10
-        or
-        "base_size": "0.001" # sell with 0.001 BTC
-      }
-    """
-    if not HAS_CREDS:
-        return {"ok": False, "error": "missing_coinbase_creds"}
-
-    product_id = payload.get("product_id")
-    side = (payload.get("side") or "").upper()
-    quote_size = payload.get("quote_size")
-    base_size = payload.get("base_size")
-
-    if not product_id or side not in ("BUY", "SELL"):
-        return {"ok": False, "error": "bad_request"}
-
-    if not quote_size and not base_size:
-        return {"ok": False, "error": "need_quote_or_base"}
-
-    if quote_size:
-        order_conf = {"market_market_ioc": {"quote_size": str(quote_size)}}
-    else:
-        order_conf = {"market_market_ioc": {"base_size": str(base_size)}}
+    token = jwt.encode(payload, private_key, algorithm="ES256")
 
     body = {
-        "product_id": product_id,
-        "side": side,
-        "order_configuration": order_conf,
+        "product_id": symbol,
+        "side": side.lower(),
+        "order_configuration": {
+            "market_market_ioc": {
+                "quote_size": str(round(amount_usd, 2))
+            }
+        }
     }
 
-    r = await cb_auth_post("/orders", body)
-    if "error" in r:
-        return {"ok": False, "error": r["error"]}
-    return {"ok": True, "result": r}
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "CB-ACCESS-KEY": api_key,
+    }
 
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(f"{ADVANCED_TRADE_API}/orders", headers=headers, json=body)
 
-# =========================================================
-# AUTO TRADER (fee-aware)
-# =========================================================
-@app.post("/api/auto/on")
-async def api_auto_on():
-    global AUTO_TRADER_ON
-    AUTO_TRADER_ON = True
-    return {"ok": True, "auto": True}
+    if r.status_code != 200:
+        return {"ok": False, "reason": f"coinbase error {r.status_code}", "body": r.text}
 
+    return {"ok": True, "body": r.json()}
 
-@app.post("/api/auto/off")
-async def api_auto_off():
-    global AUTO_TRADER_ON
-    AUTO_TRADER_ON = False
-    return {"ok": True, "auto": False}
-
-
-@app.get("/api/auto/status")
-async def api_auto_status(product_id: str = "BTC-USD"):
+async def execute_trade(symbol: str, action: str, amount_usd: float) -> dict:
     """
-    Fee-aware logic:
-      - round-trip fee = FEE_RATE (buy) + FEE_RATE (sell)
-      - we require move >= round-trip fee + buffer
-      - before BUY: check quote (USD) balance >= MIN_QUOTE * (1 + FEE_RATE)
-      - before SELL: check base balance >= (MIN_QUOTE / price) * 1.02
+    One place that actually 'does' the trade depending on STATE.
     """
-    global LAST_TRADE_AT
+    if action == "hold":
+        return {"ok": True, "mode": STATE["mode"], "skipped": True}
 
-    # 1) get recent prices
-    hist = await api_history(product_id=product_id, range_key="1D")
-    if not hist.get("ok"):
-        return {
-            "ok": False,
-            "auto_on": AUTO_TRADER_ON,
-            "action": "HOLD",
-            "reason": "no_history",
-        }
-
-    points = hist.get("points", [])
-    closes = [float(p["c"]) for p in points if p.get("c") is not None]
-    if not closes:
-        return {
-            "ok": False,
-            "auto_on": AUTO_TRADER_ON,
-            "action": "HOLD",
-            "reason": "no_closes",
-        }
-
-    current_price = closes[-1]
-    window = min(12, len(closes))
-    recent_avg = sum(closes[-window:]) / window
-
-    diff_pct = (current_price - recent_avg) / recent_avg * 100.0
-
-    # how big does the move need to be?
-    round_trip_fee_pct = FEE_RATE * 2 * 100.0      # e.g. 0.6% * 2 = 1.2%
-    min_move_pct = round_trip_fee_pct + FEE_BUFFER_PCT  # e.g. 1.2% + 0.5% = 1.7%
-
-    action = "HOLD"
-    reason = f"move {diff_pct:.2f}% < required {min_move_pct:.2f}% (fee-aware)"
-
-    # cooldown check
-    now = now_utc()
-    if LAST_TRADE_AT and now - LAST_TRADE_AT < timedelta(minutes=COOLDOWN_MINUTES):
+    if STATE["mode"] == "paper":
+        # fake fill
         return {
             "ok": True,
-            "auto_on": AUTO_TRADER_ON,
-            "action": "HOLD",
-            "reason": f"cooldown {COOLDOWN_MINUTES}m",
-            "price": current_price,
-        }
-
-    # figure out if it's a buy-dip or sell-pump
-    if diff_pct <= -min_move_pct:
-        action = "BUY"
-        reason = f"dip {abs(diff_pct):.2f}% >= {min_move_pct:.2f}%"
-    elif diff_pct >= min_move_pct:
-        action = "SELL"
-        reason = f"pump {diff_pct:.2f}% >= {min_move_pct:.2f}%"
-
-    # if auto is off, just report
-    if not AUTO_TRADER_ON or action == "HOLD":
-        return {
-            "ok": True,
-            "auto_on": AUTO_TRADER_ON,
+            "mode": "paper",
+            "filled": True,
+            "symbol": symbol,
             "action": action,
-            "reason": reason,
-            "price": current_price,
+            "amount_usd": amount_usd,
         }
 
-    # =====================================================
-    # AUTO IS ON → we might actually TRADE
-    # =====================================================
-    # before BUY → check USD
-    if action == "BUY":
-        quote_cur = parse_quote_from_pair(product_id)  # probably "USD"
-        needed = MIN_QUOTE * (1 + FEE_RATE)           # buy + fee
-        bal = await get_account_balance(quote_cur)
-        if bal < needed:
-            return {
-                "ok": True,
-                "auto_on": True,
-                "action": "HOLD",
-                "reason": f"not enough {quote_cur} ({bal:.2f}) for buy",
-                "price": current_price,
-            }
+    # live mode
+    side = "BUY" if action == "buy" else "SELL"
+    live_res = await place_live_order(symbol, side, amount_usd)
+    return live_res
 
-        # place BUY
-        res = await api_trade(
-            {
-                "product_id": product_id,
-                "side": "BUY",
-                "quote_size": str(MIN_QUOTE),
-            }
-        )
-        if res.get("ok"):
-            LAST_TRADE_AT = now
-            return {
-                "ok": True,
-                "auto_on": True,
-                "action": "BUY",
-                "reason": reason,
-                "price": current_price,
-                "executed": True,
-            }
-        else:
-            return {
-                "ok": False,
-                "auto_on": True,
-                "action": "BUY",
-                "reason": f"trade failed: {res.get('error')}",
-                "price": current_price,
-            }
+# ------------------------------------------------------------
+# ROUTES
+# ------------------------------------------------------------
 
-    # before SELL → check base
-    if action == "SELL":
-        base_cur = parse_base_from_pair(product_id)  # e.g. "BTC"
-        # how much base do we need to sell to get MIN_QUOTE?
-        base_needed = (MIN_QUOTE / current_price) * 1.02  # +2% safety
-        bal = await get_account_balance(base_cur)
-        if bal < base_needed:
-            return {
-                "ok": True,
-                "auto_on": True,
-                "action": "HOLD",
-                "reason": f"not enough {base_cur} ({bal:.6f}) for sell",
-                "price": current_price,
-            }
+@app.get("/", response_class=PlainTextResponse)
+async def root():
+    return "Backend OK"
 
-        # place SELL by base_size
-        res = await api_trade(
-            {
-                "product_id": product_id,
-                "side": "SELL",
-                "base_size": f"{base_needed:.8f}",
-            }
-        )
-        if res.get("ok"):
-            LAST_TRADE_AT = now
-            return {
-                "ok": True,
-                "auto_on": True,
-                "action": "SELL",
-                "reason": reason,
-                "price": current_price,
-                "executed": True,
-            }
-        else:
-            return {
-                "ok": False,
-                "auto_on": True,
-                "action": "SELL",
-                "reason": f"trade failed: {res.get('error')}",
-                "price": current_price,
-            }
+@app.get("/api/settings")
+async def get_settings():
+    return {
+        "mode": STATE["mode"],
+        "auto": STATE["auto"],
+        "can_live": coinbase_keys_present(),
+    }
 
-    # fallback
+@app.post("/api/settings")
+async def set_settings(req: Request):
+    body = await req.json()
+    mode = body.get("mode")
+    auto = body.get("auto")
+
+    if mode in ("paper", "live"):
+        STATE["mode"] = mode
+
+    if isinstance(auto, bool):
+        STATE["auto"] = auto
+
     return {
         "ok": True,
-        "auto_on": AUTO_TRADER_ON,
-        "action": "HOLD",
-        "reason": "no trade",
-        "price": current_price,
+        "mode": STATE["mode"],
+        "auto": STATE["auto"],
     }
 
+@app.get("/api/prices")
+async def get_prices():
+    # your frontend was showing ~10 coins — let's just pull those
+    symbols = [
+        "BTC-USD",
+        "ETH-USD",
+        "BCH-USD",
+        "SOL-USD",
+        "LTC-USD",
+        "AVAX-USD",
+        "LINK-USD",
+        "DOT-USD",
+        "ADA-USD",
+        "DOGE-USD",
+    ]
+    out = {}
+    async with httpx.AsyncClient(timeout=8) as client:
+        for s in symbols:
+            r = await client.get(f"{COINBASE_PUBLIC_API}/brokerage/products/{s}")
+            if r.status_code == 200:
+                data = r.json()
+                out[s] = float(data["price"])
+    return out
 
-# =========================================================
-# for local run
-# =========================================================
-# if __name__ == "__main__":
-#     import uvicorn
-#     uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.get("/api/history/{symbol}")
+async def get_history(symbol: str, range: str = "1d"):
+    candles = await fetch_candles(symbol, range)
+    return {"symbol": symbol, "range": range, "candles": candles}
+
+@app.post("/api/signal")
+async def post_signal(req: Request):
+    """
+    Frontend can send:
+    {
+      "symbol": "BTC-USD",
+      "current_price": 10987.12,
+      "recent_closes": [10900, 10920, ...]
+    }
+    And we'll decide buy/sell/hold AND execute if auto=True and fees look ok.
+    """
+    body = await req.json()
+    symbol = body["symbol"]
+    current_price = float(body["current_price"])
+    recent_closes = body.get("recent_closes") or []
+
+    decision = decide_action(current_price, recent_closes)
+
+    # if auto trading is OFF, just return the decision
+    if not STATE["auto"]:
+        return {
+            "auto": False,
+            "decision": decision,
+            "mode": STATE["mode"],
+        }
+
+    # auto ON -> check fees + cooldown
+    now = time.time()
+    if now - STATE["last_trade_ts"] < STATE["min_seconds_between_trades"]:
+        return {
+            "auto": True,
+            "skipped": "cooldown",
+            "decision": decision,
+            "mode": STATE["mode"],
+        }
+
+    # estimate profit = |%move|
+    if recent_closes:
+        last_price = recent_closes[-1]
+        expected_move_pct = abs((current_price - last_price) / last_price * 100)
+    else:
+        expected_move_pct = 0.0
+
+    if decision["action"] != "hold" and fees_ok(expected_move_pct, est_fee_pct=0.6):
+        # execute small 5 USD test order
+        res = await execute_trade(symbol, decision["action"], amount_usd=5.0)
+        STATE["last_trade_ts"] = now
+        return {
+            "auto": True,
+            "executed": True,
+            "decision": decision,
+            "trade_result": res,
+            "mode": STATE["mode"],
+        }
+    else:
+        return {
+            "auto": True,
+            "executed": False,
+            "reason": "not enough edge to beat fees",
+            "decision": decision,
+            "mode": STATE["mode"],
+        }
+
+# ------------------------------------------------------------
+# health for your frontend
+# ------------------------------------------------------------
+@app.get("/health")
+async def health():
+    return {"status": "ok", "mode": STATE["mode"], "auto": STATE["auto"]}
